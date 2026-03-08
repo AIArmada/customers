@@ -1,0 +1,40 @@
+{
+    "name": "aiarmada/customers",
+    "description": "Customer relationship management for the AIArmada Commerce ecosystem",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "commerce",
+        "customers",
+        "crm",
+        "addresses",
+        "segments"
+    ],
+    "authors": [
+        {
+            "name": "AIArmada",
+            "email": "dev@aiarmada.com"
+        }
+    ],
+    "require": {
+        "aiarmada/commerce-support": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "AIArmada\\Customers\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AIArmada\\Customers\\CustomersServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
