@@ -8,6 +8,7 @@ use AIArmada\Customers\Enums\AddressType;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 final class CustomerResolver
 {
@@ -99,7 +100,7 @@ final class CustomerResolver
     private function resolveUserCustomer(Model $user): ?Customer
     {
         if (method_exists($user, 'customer')) {
-            /** @var \Illuminate\Database\Eloquent\Relations\Relation|null $relation */
+            /** @var Relation|null $relation */
             $relation = $user->customer();
 
             if ($relation !== null) {
@@ -112,7 +113,7 @@ final class CustomerResolver
         }
 
         if (method_exists($user, 'customerProfile')) {
-            /** @var \Illuminate\Database\Eloquent\Relations\Relation|null $relation */
+            /** @var Relation|null $relation */
             $relation = $user->customerProfile();
 
             if ($relation !== null) {

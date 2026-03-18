@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
@@ -91,7 +92,7 @@ class CustomerNote extends Model
         /** @var class-string<Model>|null $fallbackUserModel */
         $fallbackUserModel = config('auth.providers.users.model');
 
-        return $this->belongsTo($userModel ?? $fallbackUserModel ?? \Illuminate\Foundation\Auth\User::class, 'created_by');
+        return $this->belongsTo($userModel ?? $fallbackUserModel ?? User::class, 'created_by');
     }
 
     // =========================================================================

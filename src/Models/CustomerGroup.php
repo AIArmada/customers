@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,8 +31,8 @@ use InvalidArgumentException;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Model|null $owner
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Customer> $members
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Customer> $admins
+ * @property-read Collection<int, Customer> $members
+ * @property-read Collection<int, Customer> $admins
  */
 class CustomerGroup extends Model
 {

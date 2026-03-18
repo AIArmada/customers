@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Models;
 
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Customers\Enums\CustomerStatus;
@@ -12,12 +13,14 @@ use AIArmada\Customers\Events\CustomerCreated;
 use AIArmada\Customers\Events\CustomerUpdated;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\Tags\HasTags;
@@ -41,10 +44,10 @@ use Spatie\Tags\HasTags;
  * @property-read string $full_name
  * @property-read Model|null $user
  * @property-read Model|null $owner
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Address> $addresses
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Segment> $segments
- * @property-read \Illuminate\Database\Eloquent\Collection<int, CustomerNote> $notes
- * @property-read \Illuminate\Database\Eloquent\Collection<int, CustomerGroup> $groups
+ * @property-read Collection<int, Address> $addresses
+ * @property-read Collection<int, Segment> $segments
+ * @property-read Collection<int, CustomerNote> $notes
+ * @property-read Collection<int, CustomerGroup> $groups
  */
 class Customer extends Model implements HasMedia
 {
@@ -112,7 +115,7 @@ class Customer extends Model implements HasMedia
         /** @var class-string<Model>|null $fallbackUserModel */
         $fallbackUserModel = config('auth.providers.users.model');
 
-        return $this->belongsTo($userModel ?? $fallbackUserModel ?? \Illuminate\Foundation\Auth\User::class, 'user_id');
+        return $this->belongsTo($userModel ?? $fallbackUserModel ?? User::class, 'user_id');
     }
 
     /**
@@ -350,7 +353,7 @@ class Customer extends Model implements HasMedia
                 return;
             }
 
-            $owner = \AIArmada\CommerceSupport\Support\OwnerContext::resolve();
+            $owner = OwnerContext::resolve();
 
             if ($owner !== null) {
                 $customer->assignOwner($owner);

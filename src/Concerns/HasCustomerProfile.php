@@ -6,13 +6,14 @@ namespace AIArmada\Customers\Concerns;
 
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use InvalidArgumentException;
 
 /**
  * Trait to be used on User models to provide customer profile functionality.
  *
- * @mixin \Illuminate\Database\Eloquent\Model
+ * @mixin Model
  */
 trait HasCustomerProfile
 {
