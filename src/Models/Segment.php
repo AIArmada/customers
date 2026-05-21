@@ -286,7 +286,7 @@ class Segment extends Model
                 'accepts_marketing' => $query->where('accepts_marketing', (bool) $value),
                 'status' => $query->where('status', (string) $value),
                 'created_days_ago' => $query->where('created_at', '<=', CarbonImmutable::now()->subDays((int) $value)),
-                default => null,
+                default => $query->whereRaw('1 = 0'),
             };
         }
     }

@@ -26,6 +26,7 @@ class CustomersServiceProvider extends PackageServiceProvider
         $package
             ->name('customers')
             ->hasConfigFile('customers')
+            ->runsMigrations()
             ->discoversMigrations()
             ->hasTranslations()
             ->hasCommand(RebuildSegmentsCommand::class);

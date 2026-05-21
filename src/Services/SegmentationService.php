@@ -202,7 +202,7 @@ final class SegmentationService
             return false;
         }
 
-        if ($customer->segments()->where('segment_id', $segment->id)->exists()) {
+        if ($customer->segments()->whereKey($segment->id)->exists()) {
             return false;
         }
 
@@ -221,7 +221,7 @@ final class SegmentationService
             return false;
         }
 
-        if (! $customer->segments()->where('segment_id', $segment->id)->exists()) {
+        if (! $customer->segments()->whereKey($segment->id)->exists()) {
             return false;
         }
 

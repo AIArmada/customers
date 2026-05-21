@@ -47,8 +47,6 @@ This creates the following tables:
 - `customer_segment_customer` - Segment membership pivot
 - `customer_groups` - Customer buying groups
 - `customer_group_members` - Group membership pivot
-- `wishlists` - Customer wishlists
-- `wishlist_items` - Wishlist products
 - `customer_notes` - Customer notes
 
 ## Translations
@@ -87,7 +85,6 @@ This provides convenient methods:
 - `$user->customerProfile()` - Relationship to customer
 - `$user->getOrCreateCustomerProfile()` - Get or create profile
 - `$user->hasCustomerProfile()` - Check if profile exists
-- `$user->getWalletBalance()` - Get wallet balance
 - `$user->acceptsMarketing()` - Check marketing preferences
 
 ## Configuration Recommendations
@@ -99,18 +96,17 @@ For production environments, consider:
 ```php
 // config/customers.php
 return [
-    'defaults' => [
-        'wallet' => [
-            'currency' => 'MYR',
-            'max_balance' => 100000_00, // RM 100,000 in cents
-            'min_topup' => 10_00, // RM 10 minimum topup
-        ],
+    'database' => [
+        'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'json')),
     ],
     'features' => [
         'owner' => [
             'enabled' => true, // Enable multi-tenancy
             'include_global' => false, // Don't include global by default
             'auto_assign_on_create' => true, // Auto-assign owner
+        ],
+        'segments' => [
+            'auto_assign' => true,
         ],
     ],
 ];

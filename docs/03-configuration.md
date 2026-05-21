@@ -22,8 +22,6 @@ Configure custom table names:
         'segment_customer' => 'customer_segment_customer',
         'groups' => 'customer_groups',
         'group_members' => 'customer_group_members',
-        'wishlists' => 'wishlists',
-        'wishlist_items' => 'wishlist_items',
         'notes' => 'customer_notes',
     ],
 ],
@@ -37,32 +35,6 @@ Configure JSON column type for PostgreSQL or MySQL:
 'database' => [
     'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', 'json'),
     // Use 'jsonb' for PostgreSQL for better performance
-],
-```
-
-## Defaults
-
-### Wallet Configuration
-
-```php
-'defaults' => [
-    'wallet' => [
-        'currency' => 'MYR', // ISO 4217 currency code
-        'max_balance' => 100000_00, // Maximum balance in cents
-        'min_topup' => 10_00, // Minimum topup amount in cents
-    ],
-],
-```
-
-**Important**: All amounts are stored in cents (e.g., RM 100.00 = 10000 cents).
-
-### Wishlist Limits
-
-```php
-'defaults' => [
-    'wishlists' => [
-        'max_items_per_wishlist' => 100, // Maximum items per wishlist
-    ],
 ],
 ```
 
@@ -97,27 +69,6 @@ Configure JSON column type for PostgreSQL or MySQL:
 
 When enabled, customers are automatically added/removed from automatic segments based on their attributes.
 
-### Wallet Feature
-
-```php
-'features' => [
-    'wallet' => [
-        'enabled' => true, // Enable store credit functionality
-    ],
-],
-```
-
-### Wishlist Feature
-
-```php
-'features' => [
-    'wishlists' => [
-        'enabled' => true, // Enable wishlist functionality
-        'allow_public' => true, // Allow public wishlist sharing
-    ],
-],
-```
-
 ## Integrations
 
 ### User Model
@@ -149,11 +100,8 @@ CUSTOMERS_JSON_COLUMN_TYPE=json
 ### Accessing Configuration
 
 ```php
-// Get wallet currency
-$currency = config('customers.defaults.wallet.currency'); // 'MYR'
-
-// Get max balance
-$maxBalance = config('customers.defaults.wallet.max_balance'); // 100000_00
+// Check if auto segmentation is enabled
+$autoAssignSegments = config('customers.features.segments.auto_assign'); // true
 
 // Check if owner mode is enabled
 $ownerEnabled = config('customers.features.owner.enabled'); // true
@@ -181,8 +129,7 @@ The migrations include optimized indexes for common queries:
 ```php
 // Customers table
 $table->index(['status', 'accepts_marketing']);
-$table->index('lifetime_value');
-$table->index('last_order_at');
+$table->index('is_guest');
 
 // Addresses table
 $table->index(['customer_id', 'type']);
@@ -190,6 +137,7 @@ $table->index(['customer_id', 'is_default_billing']);
 $table->index(['customer_id', 'is_default_shipping']);
 
 // Segments table
+$table->unique(['owner_type', 'owner_id', 'slug']);
 $table->index(['is_active', 'priority']);
 $table->index('type');
 ```
@@ -214,19 +162,6 @@ Schema::table('customers', function (Blueprint $table) {
 
 ## Security Considerations
 
-### Wallet Limits
-
-Set appropriate wallet limits to prevent abuse:
-
-```php
-'defaults' => [
-    'wallet' => [
-        'max_balance' => 50000_00, // RM 500 max for standard customers
-        'min_topup' => 10_00, // RM 10 minimum to prevent spam
-    ],
-],
-```
-
 ### Owner Scoping
 
 Always enable owner scoping in multi-tenant applications:
@@ -243,4 +178,4 @@ Always enable owner scoping in multi-tenant applications:
 ## Next Steps
 
 - [Usage](04-usage.md) - Learn how to use the package
-- [Models](05-models.md) - Detailed model documentation
+- [Troubleshooting](99-troubleshooting.md) - Debug common issues

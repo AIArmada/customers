@@ -11,7 +11,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create(config('customers.database.tables.segments', 'customer_segments'), function (Blueprint $table): void {
-            $jsonColumnType = config('customers.database.json_column_type', 'json');
+            $jsonColumnType = config('customers.database.json_column_type', commerce_json_column_type('customers', 'json'));
 
             $table->uuid('id')->primary();
 
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->nullableUuidMorphs('owner');
 
             $table->string('name');
-            $table->string('slug')->unique();
+            $table->string('slug');
             $table->text('description')->nullable();
 
             // Type
@@ -40,6 +40,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Indexes
+            $table->unique(['owner_type', 'owner_id', 'slug'], 'customers_segments_owner_slug_unique');
             $table->index(['is_active', 'priority']);
             $table->index('type');
         });

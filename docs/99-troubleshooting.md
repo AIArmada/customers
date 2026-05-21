@@ -15,10 +15,7 @@ title: Troubleshooting
 ```php
 use AIArmada\CommerceSupport\Support\OwnerContext;
 
-// Set owner context
-OwnerContext::setOwner($tenant);
-
-// Or use callback
+// Use callback-scoped owner context
 OwnerContext::withOwner($tenant, function() {
     $customers = Customer::all(); // Scoped to tenant
 });
@@ -33,51 +30,6 @@ OwnerContext::withOwner($tenant, function() {
 if ($customer->belongsToOwner($order->owner)) {
     // Safe to proceed
 }
-```
-
-### Wallet Issues
-
-**Problem**: `addCredit()` returns false
-
-**Possible causes**:
-1. Wallet feature disabled in config
-2. Amount below minimum topup
-3. Would exceed maximum balance
-4. Invalid amount (negative or zero)
-
-**Solution**:
-
-```php
-// Check config
-if (!config('customers.features.wallet.enabled')) {
-    // Enable wallet in config
-}
-
-// Check limits
-$minTopup = config('customers.defaults.wallet.min_topup');
-$maxBalance = config('customers.defaults.wallet.max_balance');
-
-if ($amount < $minTopup) {
-    throw new \Exception("Amount below minimum: RM " . ($minTopup / 100));
-}
-
-if (($customer->wallet_balance + $amount) > $maxBalance) {
-    throw new \Exception("Would exceed maximum balance");
-}
-```
-
-**Problem**: Wallet balance incorrect after refund
-
-**Solution**: Use transactions for atomic updates:
-
-```php
-DB::transaction(function() use ($customer, $amount) {
-    if (!$customer->addCredit($amount, 'Refund for order #123')) {
-        throw new \Exception('Failed to add credit');
-    }
-    
-    // Other refund logic
-});
 ```
 
 ### Segment Issues
@@ -181,15 +133,7 @@ $customers = Customer::with(['segments', 'addresses'])->get();
 
 **Problem**: Slow segment rebuilds
 
-**Solution**: Run in background:
-
-```php
-use AIArmada\Customers\Jobs\RebuildSegmentJob;
-
-RebuildSegmentJob::dispatch($segment);
-```
-
-Or use chunking:
+**Solution**: Use chunking when evaluating large customer datasets:
 
 ```php
 Customer::active()->chunk(1000, function($customers) use ($service) {
@@ -284,11 +228,6 @@ When reporting issues, include:
 - **Never** trust Filament form options without server-side validation
 - **Use** `forOwner()` explicitly when owner context is ambiguous
 
-### Wallet Amounts
-- **Always** use cents (integers), never floats
-- **Remember** RM 10.00 = 1000 cents
-- **Validate** amounts on both client and server
-
 ### Segments
 - **Automatic** segments override manual assignments
 - **Priority** matters for pricing (higher = more important)
@@ -298,11 +237,6 @@ When reporting issues, include:
 - **Unique** default addresses per type (only one default billing, one default shipping)
 - **Country** codes must be ISO 3166-1 alpha-2 (e.g., 'MY', 'SG')
 - **Verification** is manual - integrate with address validation service
-
-### Wishlists
-- **Share tokens** are permanent until regenerated
-- **Public** wishlists can be viewed by anyone with the token
-- **Maximum** items enforced per wishlist
 
 ## Next Steps
 

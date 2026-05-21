@@ -9,6 +9,7 @@ use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use InvalidArgumentException;
 
 final class CustomerResolver
 {
@@ -25,7 +26,9 @@ final class CustomerResolver
 
             if ($userCustomer !== null) {
                 if ($sessionCustomer !== null && $sessionCustomer->is_guest && $sessionCustomer->id !== $userCustomer->id) {
-                    $this->mergeCustomers($sessionCustomer, $userCustomer);
+                    if ($this->customersShareOwnerContext($sessionCustomer, $userCustomer)) {
+                        $this->mergeCustomers($sessionCustomer, $userCustomer);
+                    }
                 }
 
                 $this->syncAddressesFromPayload($userCustomer, $billingData, $shippingData);
@@ -69,6 +72,10 @@ final class CustomerResolver
             ->first();
 
         if ($existingCustomer !== null) {
+            if (! $existingCustomer->is_guest || $existingCustomer->user_id !== null) {
+                return null;
+            }
+
             $this->syncAddressesFromPayload($existingCustomer, $billingData, $shippingData);
 
             return $existingCustomer;
@@ -82,6 +89,10 @@ final class CustomerResolver
 
     public function mergeCustomers(Customer $source, Customer $target): Customer
     {
+        if (! $this->customersShareOwnerContext($source, $target)) {
+            throw new InvalidArgumentException('Cannot merge customers across different owner contexts.');
+        }
+
         $this->moveAddresses($source, $target);
         $this->mergeSegments($source, $target);
         $this->mergeGroups($source, $target);
@@ -330,8 +341,10 @@ final class CustomerResolver
 
     private function mergeSegments(Customer $source, Customer $target): void
     {
-        $segmentIds = $source->segments()
-            ->pluck('customer_segments.id')
+        $segmentsRelation = $source->segments();
+
+        $segmentIds = $segmentsRelation
+            ->pluck($segmentsRelation->getRelated()->qualifyColumn($segmentsRelation->getRelatedKeyName()))
             ->all();
 
         if (! empty($segmentIds)) {
@@ -341,8 +354,10 @@ final class CustomerResolver
 
     private function mergeGroups(Customer $source, Customer $target): void
     {
-        $groupIds = $source->groups()
-            ->pluck('customer_groups.id')
+        $groupsRelation = $source->groups();
+
+        $groupIds = $groupsRelation
+            ->pluck($groupsRelation->getRelated()->qualifyColumn($groupsRelation->getRelatedKeyName()))
             ->all();
 
         if (! empty($groupIds)) {
@@ -460,5 +475,15 @@ final class CustomerResolver
         $trimmed = mb_trim((string) $value);
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function customersShareOwnerContext(Customer $source, Customer $target): bool
+    {
+        if ($source->owner_type === null && $source->owner_id === null) {
+            return $target->owner_type === null && $target->owner_id === null;
+        }
+
+        return $source->owner_type === $target->owner_type
+            && $source->owner_id === $target->owner_id;
     }
 }

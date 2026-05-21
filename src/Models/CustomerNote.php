@@ -169,14 +169,10 @@ class CustomerNote extends Model
                 return;
             }
 
-            if ($note->owner_type !== null || $note->owner_id !== null) {
-                return;
-            }
-
             $owner = OwnerContext::resolve();
 
             $customer = Customer::query()
-                ->forOwner($owner, includeGlobal: false)
+                ->withoutOwnerScope()
                 ->whereKey($note->customer_id)
                 ->first();
 
@@ -184,9 +180,33 @@ class CustomerNote extends Model
                 throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
             }
 
+            if ($owner === null) {
+                if ($customer->owner_type !== null || $customer->owner_id !== null) {
+                    throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
+                }
+            } elseif (
+                $customer->owner_type !== $owner->getMorphClass()
+                || (string) $customer->owner_id !== (string) $owner->getKey()
+            ) {
+                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
+            }
+
+            if (
+                ($note->owner_type !== null || $note->owner_id !== null)
+                && (
+                    $note->owner_type !== $customer->owner_type
+                    || (string) $note->owner_id !== (string) $customer->owner_id
+                )
+            ) {
+                throw new InvalidArgumentException('Customer note owner tuple must match the related customer owner tuple.');
+            }
+
             if ($customer->owner_type !== null && $customer->owner_id !== null) {
                 $note->owner_type = $customer->owner_type;
                 $note->owner_id = $customer->owner_id;
+            } else {
+                $note->owner_type = null;
+                $note->owner_id = null;
             }
         });
 
@@ -202,11 +222,22 @@ class CustomerNote extends Model
             $owner = OwnerContext::resolve();
 
             $customer = Customer::query()
-                ->forOwner($owner, includeGlobal: false)
+                ->withoutOwnerScope()
                 ->whereKey($note->customer_id)
                 ->first();
 
             if ($customer === null) {
+                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
+            }
+
+            if ($owner === null) {
+                if ($customer->owner_type !== null || $customer->owner_id !== null) {
+                    throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
+                }
+            } elseif (
+                $customer->owner_type !== $owner->getMorphClass()
+                || (string) $customer->owner_id !== (string) $owner->getKey()
+            ) {
                 throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
             }
 

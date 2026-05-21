@@ -272,14 +272,10 @@ class Address extends Model
                 return;
             }
 
-            if ($address->owner_type !== null || $address->owner_id !== null) {
-                return;
-            }
-
             $owner = OwnerContext::resolve();
 
             $customer = Customer::query()
-                ->forOwner($owner, includeGlobal: false)
+                ->withoutOwnerScope()
                 ->whereKey($address->customer_id)
                 ->first();
 
@@ -287,9 +283,33 @@ class Address extends Model
                 throw new InvalidArgumentException('Address customer must belong to the current owner context.');
             }
 
+            if ($owner === null) {
+                if ($customer->owner_type !== null || $customer->owner_id !== null) {
+                    throw new InvalidArgumentException('Address customer must belong to the current owner context.');
+                }
+            } elseif (
+                $customer->owner_type !== $owner->getMorphClass()
+                || (string) $customer->owner_id !== (string) $owner->getKey()
+            ) {
+                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
+            }
+
+            if (
+                ($address->owner_type !== null || $address->owner_id !== null)
+                && (
+                    $address->owner_type !== $customer->owner_type
+                    || (string) $address->owner_id !== (string) $customer->owner_id
+                )
+            ) {
+                throw new InvalidArgumentException('Address owner tuple must match the related customer owner tuple.');
+            }
+
             if ($customer->owner_type !== null && $customer->owner_id !== null) {
                 $address->owner_type = $customer->owner_type;
                 $address->owner_id = $customer->owner_id;
+            } else {
+                $address->owner_type = null;
+                $address->owner_id = null;
             }
         });
 
@@ -305,11 +325,22 @@ class Address extends Model
             $owner = OwnerContext::resolve();
 
             $customer = Customer::query()
-                ->forOwner($owner, includeGlobal: false)
+                ->withoutOwnerScope()
                 ->whereKey($address->customer_id)
                 ->first();
 
             if ($customer === null) {
+                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
+            }
+
+            if ($owner === null) {
+                if ($customer->owner_type !== null || $customer->owner_id !== null) {
+                    throw new InvalidArgumentException('Address customer must belong to the current owner context.');
+                }
+            } elseif (
+                $customer->owner_type !== $owner->getMorphClass()
+                || (string) $customer->owner_id !== (string) $owner->getKey()
+            ) {
                 throw new InvalidArgumentException('Address customer must belong to the current owner context.');
             }
 

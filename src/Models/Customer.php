@@ -280,7 +280,7 @@ class Customer extends Model implements HasMedia
     {
         $segmentId = $segment instanceof Segment ? $segment->id : $segment;
 
-        return $query->whereHas('segments', fn ($q) => $q->where('segment_id', $segmentId));
+        return $query->whereHas('segments', fn (Builder $segmentQuery) => $segmentQuery->whereKey($segmentId));
     }
 
     // =========================================================================

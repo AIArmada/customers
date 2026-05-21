@@ -173,7 +173,7 @@ class CustomerGroup extends Model
      */
     public function hasMember(Customer $customer): bool
     {
-        return $this->members()->where('customer_id', $customer->id)->exists();
+        return $this->members()->whereKey($customer->id)->exists();
     }
 
     /**
@@ -181,7 +181,7 @@ class CustomerGroup extends Model
      */
     public function isAdmin(Customer $customer): bool
     {
-        return $this->admins()->where('customer_id', $customer->id)->exists();
+        return $this->admins()->whereKey($customer->id)->exists();
     }
 
     // =========================================================================

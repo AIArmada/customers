@@ -11,7 +11,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create(config('customers.database.tables.addresses', 'customer_addresses'), function (Blueprint $table): void {
-            $jsonColumnType = config('customers.database.json_column_type', 'json');
+            $jsonColumnType = config('customers.database.json_column_type', commerce_json_column_type('customers', 'json'));
 
             $table->uuid('id')->primary();
 

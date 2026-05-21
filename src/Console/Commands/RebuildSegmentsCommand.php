@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Console\Commands;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleColumns;
+use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleParser;
 use AIArmada\Customers\Models\Segment;
 use AIArmada\Customers\Services\SegmentationService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * Artisan command to rebuild automatic customer segments.
@@ -144,11 +145,16 @@ class RebuildSegmentsCommand extends Command
 
     private function rebuildAllOwners(SegmentationService $service, bool $dryRun): int
     {
+        $columns = OwnerTupleColumns::forModelClass(Segment::class);
+
         $owners = Segment::query()
             ->withoutOwnerScope()
             ->active()
             ->automatic()
-            ->select(['owner_type', 'owner_id'])
+            ->select([
+                $columns->ownerTypeColumn . ' as owner_type',
+                $columns->ownerIdColumn . ' as owner_id',
+            ])
             ->distinct()
             ->get();
 
@@ -161,16 +167,13 @@ class RebuildSegmentsCommand extends Command
         $results = [];
 
         foreach ($owners as $row) {
+            $tuple = OwnerTupleParser::fromRow($row, new OwnerTupleColumns);
+            $owner = $tuple->toOwnerModel();
+
             /** @var string|null $ownerType */
-            $ownerType = $row->getAttribute('owner_type');
+            $ownerType = $tuple->owner_type;
             /** @var string|int|null $ownerId */
-            $ownerId = $row->getAttribute('owner_id');
-
-            $owner = null;
-
-            if ($ownerType !== null && $ownerId !== null) {
-                $owner = $this->resolveOwnerFromTypeAndId($ownerType, (string) $ownerId);
-            }
+            $ownerId = $tuple->owner_id;
 
             $label = $this->ownerLabel($ownerType, $ownerId);
 
@@ -223,22 +226,7 @@ class RebuildSegmentsCommand extends Command
 
     private function resolveOwnerFromTypeAndId(string $ownerType, string $ownerId): ?Model
     {
-        $class = Relation::getMorphedModel($ownerType) ?? (class_exists($ownerType) ? $ownerType : null);
-
-        if ($class === null || ! is_subclass_of($class, Model::class)) {
-            $this->components->warn("Unknown owner type: {$ownerType}");
-
-            return null;
-        }
-
-        /** @var Model|null $owner */
-        $owner = $class::query()->find($ownerId);
-
-        if ($owner === null) {
-            $this->components->warn("Owner not found: {$ownerType}:{$ownerId}");
-        }
-
-        return $owner;
+        return OwnerContext::fromTypeAndId($ownerType, $ownerId);
     }
 
     private function ownerLabel(?string $ownerType, string | int | null $ownerId): string
