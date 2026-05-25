@@ -4,7 +4,44 @@ title: Overview
 
 # Customers Package
 
-The Customers package provides core customer identity and data management for the AIArmada Commerce ecosystem. It focuses on customer profiles, addresses, segments, groups, and notes.
+The Customers package provides the core customer identity and CRM-style data model for the AIArmada Commerce ecosystem.
+
+## Purpose
+
+Use this package when you need the customer-side domain model: profiles, addresses, segments, groups, notes, owner-aware storage, and the policies and events that protect those records.
+
+## What this package owns
+
+- Customer profiles, lifecycle state, and marketing preferences
+- Customer addresses, default billing and shipping rules, and address helpers
+- Manual and automatic customer segments with rebuild logic
+- Customer groups and internal/customer-visible notes
+- Customer policies, events, and segmentation services
+- Owner-aware persistence for customer-facing domain records
+- Customer tagging, activity logging, and media hooks on the core customer model
+
+## What this package does not own
+
+- Filament admin resources, widgets, or panel navigation for customers
+- Orders, carts, checkout flow, pricing logic, or payment behavior
+- Application-specific user registration, authentication UI, or profile management screens
+- Tenant resolution itself beyond consuming `commerce-support` owner context
+
+## Related packages
+
+- `aiarmada/commerce-support` provides owner-scoping, activity, and helper primitives used by the models
+- `aiarmada/filament-customers` provides the Filament admin resources and widgets for this package
+- Other Commerce packages such as `orders`, `pricing`, and `checkout` consume customer records but do not replace this package as the source of truth
+
+## Main models services or surfaces
+
+- `Customer`
+- `Address`
+- `Segment`
+- `CustomerGroup`
+- `CustomerNote`
+- `SegmentationService`
+- `RebuildSegmentsCommand`
 
 ## Features
 
@@ -45,16 +82,15 @@ The Customers package provides core customer identity and data management for th
 - **Tagging**: Flexible tagging for segmentation via Spatie Tags
 - **Activity Logging**: Comprehensive activity tracking
 
-## Multi-Tenancy
+## Owner scoping and security notes
 
-The package includes full multi-tenancy support:
 - **Owner Scoping**: All models support owner relationships via `HasOwner` trait
 - **Automatic Assignment**: Auto-assign owner on creation
 - **Owner Validation**: Enforce owner context on foreign keys
 - **Global Records**: Optional support for global records
 - **Query Scoping**: Default-on owner scoping with opt-out
 
-## Integration
+## Integrations
 
 Works seamlessly with:
 - **Spatie Media Library**: For customer avatars and documents
@@ -73,8 +109,9 @@ The package follows SOLID principles:
 - **Services**: Business logic encapsulation (SegmentationService)
 - **Commands**: Artisan commands for maintenance tasks (RebuildSegmentsCommand)
 
-## Next Steps
+## Read next
 
 - [Installation](02-installation.md) - Set up the package
 - [Configuration](03-configuration.md) - Configure package options
 - [Usage](04-usage.md) - Learn how to use the package
+- [Troubleshooting](99-troubleshooting.md) - Debug common issues

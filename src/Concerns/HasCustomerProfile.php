@@ -14,11 +14,18 @@ use InvalidArgumentException;
  * Trait to be used on User models to provide customer profile functionality.
  *
  * @mixin Model
+ *
+ * @property string $email
+ * @property string|null $name
+ * @property string|null $phone
+ * @property-read Customer|null $customerProfile
  */
 trait HasCustomerProfile
 {
     /**
      * Get the customer profile for this user.
+     *
+     * @return HasOne<Customer, $this>
      */
     public function customerProfile(): HasOne
     {
@@ -32,7 +39,7 @@ trait HasCustomerProfile
     {
         $customer = $this->customerProfile;
 
-        if ($customer) {
+        if ($customer instanceof Customer) {
             return $customer;
         }
 
@@ -84,7 +91,13 @@ trait HasCustomerProfile
      */
     public function acceptsMarketing(): bool
     {
-        return $this->customerProfile?->accepts_marketing ?? false;
+        $customerProfile = $this->customerProfile;
+
+        if (! $customerProfile instanceof Customer) {
+            return false;
+        }
+
+        return $customerProfile->accepts_marketing;
     }
 
     /**
@@ -92,7 +105,13 @@ trait HasCustomerProfile
      */
     public function getDefaultShippingAddress(): ?Address
     {
-        return $this->customerProfile?->getDefaultShippingAddress();
+        $customerProfile = $this->customerProfile;
+
+        if (! $customerProfile instanceof Customer) {
+            return null;
+        }
+
+        return $customerProfile->getDefaultShippingAddress();
     }
 
     /**
@@ -100,6 +119,12 @@ trait HasCustomerProfile
      */
     public function getDefaultBillingAddress(): ?Address
     {
-        return $this->customerProfile?->getDefaultBillingAddress();
+        $customerProfile = $this->customerProfile;
+
+        if (! $customerProfile instanceof Customer) {
+            return null;
+        }
+
+        return $customerProfile->getDefaultBillingAddress();
     }
 }

@@ -40,16 +40,11 @@ final class AddressPolicy
             return $address->owner_type === null && $address->owner_id === null;
         }
 
-        if ($includeGlobal && method_exists($address, 'isGlobal') && $address->isGlobal()) {
+        if ($includeGlobal && $address->isGlobal()) {
             return true;
         }
 
-        if (method_exists($address, 'belongsToOwner')) {
-            return $address->belongsToOwner($owner);
-        }
-
-        return $address->owner_type === $owner->getMorphClass()
-            && $address->owner_id === $owner->getKey();
+        return $address->belongsToOwner($owner);
     }
 
     public function viewAny(mixed $user): bool

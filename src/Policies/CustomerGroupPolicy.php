@@ -40,16 +40,11 @@ final class CustomerGroupPolicy
             return $group->owner_type === null && $group->owner_id === null;
         }
 
-        if ($includeGlobal && method_exists($group, 'isGlobal') && $group->isGlobal()) {
+        if ($includeGlobal && $group->isGlobal()) {
             return true;
         }
 
-        if (method_exists($group, 'belongsToOwner')) {
-            return $group->belongsToOwner($owner);
-        }
-
-        return $group->owner_type === $owner->getMorphClass()
-            && $group->owner_id === $owner->getKey();
+        return $group->belongsToOwner($owner);
     }
 
     public function viewAny(mixed $user): bool

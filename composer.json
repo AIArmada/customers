@@ -18,7 +18,8 @@
         }
     ],
     "require": {
-        "aiarmada/commerce-support": "self.version"
+        "aiarmada/commerce-support": "self.version",
+        "php": "^8.4"
     },
     "autoload": {
         "psr-4": {

@@ -14,7 +14,7 @@ Configure custom table names:
 
 ```php
 'database' => [
-    'table_prefix' => '', // Optional prefix for all tables
+    'table_prefix' => 'customer_',
     'tables' => [
         'customers' => 'customers',
         'addresses' => 'customer_addresses',
@@ -41,6 +41,8 @@ Configure JSON column type for PostgreSQL or MySQL:
 ## Features
 
 ### Owner (Multi-Tenancy)
+
+The owner config lives under `customers.features.owner`.
 
 ```php
 'features' => [
