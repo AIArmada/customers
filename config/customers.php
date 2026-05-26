@@ -22,7 +22,7 @@ return [
     // Features
     'features' => [
         'owner' => [
-            'enabled' => env('CUSTOMERS_OWNER_ENABLED', true),
+            'enabled' => env('CUSTOMERS_OWNER_ENABLED', false),
             'include_global' => env('CUSTOMERS_OWNER_INCLUDE_GLOBAL', false),
             'auto_assign_on_create' => env('CUSTOMERS_OWNER_AUTO_ASSIGN', true),
         ],
