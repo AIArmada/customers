@@ -31,6 +31,7 @@ final class CustomerResolver
                     }
                 }
 
+                $this->syncCustomerProfileFromPayload($userCustomer, $billingData, $shippingData, $user);
                 $this->syncAddressesFromPayload($userCustomer, $billingData, $shippingData);
 
                 return $userCustomer;
@@ -42,6 +43,7 @@ final class CustomerResolver
                     'is_guest' => false,
                 ]);
 
+                $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, $user);
                 $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
 
                 return $sessionCustomer;
@@ -52,12 +54,14 @@ final class CustomerResolver
             }
 
             $customer = $this->createCustomer($email, $billingData, $shippingData, $user, false);
+            $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, $user);
             $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
 
             return $customer;
         }
 
         if ($sessionCustomer !== null) {
+            $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, null);
             $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
 
             return $sessionCustomer;
@@ -76,12 +80,14 @@ final class CustomerResolver
                 return null;
             }
 
+            $this->syncCustomerProfileFromPayload($existingCustomer, $billingData, $shippingData, null);
             $this->syncAddressesFromPayload($existingCustomer, $billingData, $shippingData);
 
             return $existingCustomer;
         }
 
         $customer = $this->createCustomer($email, $billingData, $shippingData, null, true);
+        $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, null);
         $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
 
         return $customer;
@@ -183,6 +189,50 @@ final class CustomerResolver
             'company' => $company,
             'is_guest' => $isGuest,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $billingData
+     * @param  array<string, mixed>  $shippingData
+     */
+    private function syncCustomerProfileFromPayload(
+        Customer $customer,
+        array $billingData,
+        array $shippingData,
+        ?Model $user,
+    ): void {
+        $updates = [];
+
+        $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
+
+        if ($nameParts !== null) {
+            [$firstName, $lastName] = $nameParts;
+            $updates['first_name'] = $firstName;
+            $updates['last_name'] = $lastName;
+        }
+
+        $phone = $this->cleanString($billingData['phone'] ?? null)
+            ?? $this->cleanString($shippingData['phone'] ?? null)
+            ?? $this->cleanString($user?->getAttribute('phone'));
+
+        if ($phone !== null) {
+            $updates['phone'] = $phone;
+        }
+
+        $company = $this->cleanString($billingData['company'] ?? null)
+            ?? $this->cleanString($shippingData['company'] ?? null);
+
+        if ($company !== null) {
+            $updates['company'] = $company;
+        }
+
+        if ($updates !== []) {
+            $customer->fill($updates);
+
+            if ($customer->isDirty()) {
+                $customer->save();
+            }
+        }
     }
 
     /**
@@ -392,6 +442,18 @@ final class CustomerResolver
      */
     private function resolveNameParts(array $billingData, array $shippingData, ?Model $user): array
     {
+        $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
+
+        return $nameParts ?? ['Guest', ''];
+    }
+
+    /**
+     * @param  array<string, mixed>  $billingData
+     * @param  array<string, mixed>  $shippingData
+     * @return array{0: string, 1: string}|null
+     */
+    private function resolveProvidedNameParts(array $billingData, array $shippingData, ?Model $user): ?array
+    {
         $firstName = $this->cleanString($billingData['first_name'] ?? $shippingData['first_name'] ?? null);
         $lastName = $this->cleanString($billingData['last_name'] ?? $shippingData['last_name'] ?? null);
 
@@ -407,7 +469,7 @@ final class CustomerResolver
                 ?? $user?->getAttribute('name')
         );
 
-        return $this->splitName($name);
+        return $name !== null ? $this->splitName($name) : null;
     }
 
     /**
@@ -457,7 +519,7 @@ final class CustomerResolver
         $parts = preg_split('/\s+/', $name) ?: [];
 
         $firstName = $parts[0] ?? $name;
-        $lastName = count($parts) > 1 ? (string) end($parts) : '';
+        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '';
 
         return [$firstName, $lastName];
     }

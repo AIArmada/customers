@@ -73,7 +73,7 @@ trait HasCustomerProfile
         $parts = preg_split('/\s+/', $name) ?: [];
 
         $firstName = $parts[0] ?? $name;
-        $lastName = count($parts) > 1 ? (string) end($parts) : '';
+        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '';
 
         return [$firstName, $lastName];
     }
