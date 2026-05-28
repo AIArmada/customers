@@ -62,6 +62,66 @@ $customer->addresses()->create([
 ]);
 ```
 
+## Checkout and Payment Subject Resolution
+
+When `aiarmada/checkout` and `aiarmada/commerce-support` are installed, this package helps resolve the customer and payment subject before payment is created.
+
+### Resolving a Customer from Checkout Payloads
+
+Use `CustomerResolver` when you need to turn an authenticated user, an existing session customer, and billing/shipping payloads into the best available `Customer` record.
+
+```php
+use AIArmada\Customers\Services\CustomerResolver;
+
+$customer = app(CustomerResolver::class)->resolve(
+    user: auth()->user(),
+    sessionCustomer: $checkoutSession->customer,
+    billingData: $checkoutSession->billing_data ?? [],
+    shippingData: $checkoutSession->shipping_data ?? [],
+);
+```
+
+`CustomerResolver` handles the cases that matter during checkout:
+
+- authenticated users reuse their existing customer profile when possible
+- guest checkout sessions can be promoted to a linked customer once a user is present
+- guest customers can be merged into the authenticated user's customer when both records share the same owner context
+- billing and shipping payloads are used to keep customer profile fields and default addresses fresh
+
+### Payment Subject Driver Integration
+
+`CustomersServiceProvider` automatically registers `CustomersPaymentSubjectDriver` with Commerce Support's `PaymentSubjectResolverInterface` after the container boots.
+
+That driver runs before the guest fallback driver and returns a `ResolvedPaymentSubject` with:
+
+- the resolved `Customer` model as the payment subject
+- a normalized `PaymentCustomerData` object for the gateway payload
+- guest-vs-authenticated context via `isGuest`
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
+
+$resolved = app(PaymentSubjectResolverInterface::class)->resolve(
+    new PaymentSubjectContext(
+        gateway: 'cashier-chip',
+        actor: auth()->user(),
+        sessionCustomer: $checkoutSession->customer,
+        sessionBillable: $checkoutSession->billable,
+        billingData: $checkoutSession->billing_data ?? [],
+        shippingData: $checkoutSession->shipping_data ?? [],
+        metadata: ['checkout_session_id' => $checkoutSession->id],
+        owner: $checkoutSession->hasOwner() ? $checkoutSession->owner : null,
+        source: 'checkout.resolve_customer',
+    )
+);
+
+$subject = $resolved?->subject;
+$paymentCustomer = $resolved?->paymentCustomer;
+```
+
+The driver prefers customer defaults when the payload is incomplete. For example, it falls back to default billing and shipping addresses when the checkout payload does not supply `line1`, `city`, `postcode`, or `country`.
+
 ## Managing Customer Status
 
 ### Update Status

@@ -19,11 +19,13 @@ Use this package when you need the customer-side domain model: profiles, address
 - Customer policies, events, and segmentation services
 - Owner-aware persistence for customer-facing domain records
 - Customer tagging, activity logging, and media hooks on the core customer model
+- Customer resolution for checkout and billing flows when a package needs to map users or guest payloads to a `Customer`
+- The customer-aware payment subject driver registered into Commerce Support's payment-subject resolver
 
 ## What this package does not own
 
 - Filament admin resources, widgets, or panel navigation for customers
-- Orders, carts, checkout flow, pricing logic, or payment behavior
+- Orders, carts, checkout orchestration, pricing logic, gateway API calls, or payment capture logic
 - Application-specific user registration, authentication UI, or profile management screens
 - Tenant resolution itself beyond consuming `commerce-support` owner context
 
@@ -31,7 +33,8 @@ Use this package when you need the customer-side domain model: profiles, address
 
 - `aiarmada/commerce-support` provides owner-scoping, activity, and helper primitives used by the models
 - `aiarmada/filament-customers` provides the Filament admin resources and widgets for this package
-- Other Commerce packages such as `orders`, `pricing`, and `checkout` consume customer records but do not replace this package as the source of truth
+- `aiarmada/checkout` uses this package to resolve authenticated and guest checkout payloads into customer records and billable subjects
+- Other Commerce packages such as `orders` and `pricing` consume customer records but do not replace this package as the source of truth
 
 ## Main models services or surfaces
 
@@ -40,6 +43,8 @@ Use this package when you need the customer-side domain model: profiles, address
 - `Segment`
 - `CustomerGroup`
 - `CustomerNote`
+- `CustomerResolver`
+- `CustomersPaymentSubjectDriver`
 - `SegmentationService`
 - `RebuildSegmentsCommand`
 
@@ -75,6 +80,12 @@ Use this package when you need the customer-side domain model: profiles, address
 - **Customer-Visible Notes**: Notes that can be shared with customers
 - **Pinned Notes**: Highlight important notes
 - **Audit Trail**: Track who created each note
+
+### Checkout & Payment Subject Resolution
+- **CustomerResolver**: Resolves the best customer record from an authenticated user, session customer, and billing/shipping payloads
+- **Guest Promotion & Merge**: Converts guest customers into linked customers and merges guest profiles when the owner context matches
+- **Address Hydration**: Creates or reuses default billing and shipping addresses from checkout payloads
+- **Payment Subject Driver**: Registers a high-priority customer-aware payment subject driver before the guest fallback driver
 
 ### Media & Tags
 - **Avatar Images**: Customer profile pictures via Spatie Media Library
