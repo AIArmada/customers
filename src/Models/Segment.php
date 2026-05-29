@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Models;
 
+use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
@@ -17,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property string $id
@@ -36,16 +39,35 @@ use InvalidArgumentException;
  * @property-read Model|null $owner
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Customer> $customers
  */
-class Segment extends Model
+class Segment extends Model implements Auditable
 {
+    use HasCommerceAudit;
     use HasFactory;
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
     protected $guarded = ['id'];
+
+    public function getAuditInclude(): array
+    {
+        return [
+            'owner_type',
+            'owner_id',
+            'name',
+            'slug',
+            'description',
+            'type',
+            'conditions',
+            'is_automatic',
+            'priority',
+            'is_active',
+            'metadata',
+        ];
+    }
 
     /**
      * @var array<string, string>
@@ -262,6 +284,11 @@ class Segment extends Model
         static::deleting(function (Segment $segment): void {
             $segment->customers()->detach();
         });
+    }
+
+    protected function getActivityLogName(): string
+    {
+        return 'customers';
     }
 
     /**
