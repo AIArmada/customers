@@ -20,7 +20,7 @@ Use this package when you need the customer-side domain model: profiles, address
 - Owner-aware persistence for customer-facing domain records
 - Customer tagging, activity logging, and media hooks on the core customer model
 - Customer resolution for checkout and billing flows when a package needs to map users or guest payloads to a `Customer`
-- The customer-aware payment subject driver registered into Commerce Support's payment-subject resolver
+- The customer-aware payment subject driver registered into Commerce Support's payment-subject resolver, including read-only pre-payment resolution for direct-capable checkout flows and post-payment materialization when checkout asks for persistence
 
 ## What this package does not own
 
@@ -33,7 +33,7 @@ Use this package when you need the customer-side domain model: profiles, address
 
 - `aiarmada/commerce-support` provides owner-scoping, activity, and helper primitives used by the models
 - `aiarmada/filament-customers` provides the Filament admin resources and widgets for this package
-- `aiarmada/checkout` uses this package to resolve authenticated and guest checkout payloads into customer records and billable subjects
+- `aiarmada/checkout` uses this package to resolve authenticated and guest checkout payloads into customer records and billable subjects, with guest/direct customer creation deferred until after payment when the gateway does not require a persisted billable model
 - Other Commerce packages such as `orders` and `pricing` consume customer records but do not replace this package as the source of truth
 
 ## Main models services or surfaces

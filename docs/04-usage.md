@@ -64,7 +64,7 @@ $customer->addresses()->create([
 
 ## Checkout and Payment Subject Resolution
 
-When `aiarmada/checkout` and `aiarmada/commerce-support` are installed, this package helps resolve the customer and payment subject before payment is created.
+When `aiarmada/checkout` and `aiarmada/commerce-support` are installed, this package helps resolve the customer and payment subject before payment is created and materialize the customer after payment when checkout asks for persistence.
 
 ### Resolving a Customer from Checkout Payloads
 
@@ -88,6 +88,10 @@ $customer = app(CustomerResolver::class)->resolve(
 - guest customers can be merged into the authenticated user's customer when both records share the same owner context
 - billing and shipping payloads are used to keep customer profile fields and default addresses fresh
 
+For direct-capable checkout flows, the package also exposes a read-only lookup path so checkout can reuse existing customers before payment without creating new guest records prematurely. Checkout then calls back into the full resolver after payment succeeds to create or sync the customer record.
+
+If owner-scoping is enabled, pass the checkout session owner into the resolver so both customer creation and guest-customer reuse happen within the correct tenant boundary instead of relying purely on ambient context.
+
 ### Payment Subject Driver Integration
 
 `CustomersServiceProvider` automatically registers `CustomersPaymentSubjectDriver` with Commerce Support's `PaymentSubjectResolverInterface` after the container boots.
@@ -97,6 +101,8 @@ That driver runs before the guest fallback driver and returns a `ResolvedPayment
 - the resolved `Customer` model as the payment subject
 - a normalized `PaymentCustomerData` object for the gateway payload
 - guest-vs-authenticated context via `isGuest`
+
+When checkout calls the driver from `checkout.resolve_customer`, the driver stays read-only for direct-capable guest flows and falls through to the guest payment-subject driver if no persisted customer already exists. When checkout calls it from its post-payment persistence phase, the driver uses the full `CustomerResolver` workflow and can create, promote, or merge the `Customer`.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;

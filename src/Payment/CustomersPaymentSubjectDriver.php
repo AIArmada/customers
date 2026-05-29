@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Contracts\Payment\PaymentCustomerData;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectDriverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Services\CustomerResolver;
@@ -41,13 +42,23 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
         $sessionCustomer = $context->subject instanceof Customer
             ? $context->subject
             : ($context->sessionCustomer instanceof Customer ? $context->sessionCustomer : null);
+        $owner = $context->owner ?? OwnerContext::CURRENT;
 
-        $customer = $this->customerResolver->resolve(
-            user: $context->actor,
-            sessionCustomer: $sessionCustomer,
-            billingData: $context->billingData,
-            shippingData: $context->shippingData,
-        );
+        $customer = $this->shouldResolveWithoutPersistence($context)
+            ? $this->customerResolver->resolveExisting(
+                user: $context->actor,
+                sessionCustomer: $sessionCustomer,
+                billingData: $context->billingData,
+                shippingData: $context->shippingData,
+                owner: $owner,
+            )
+            : $this->customerResolver->resolve(
+                user: $context->actor,
+                sessionCustomer: $sessionCustomer,
+                billingData: $context->billingData,
+                shippingData: $context->shippingData,
+                owner: $owner,
+            );
 
         if ($customer === null) {
             return null;
@@ -60,6 +71,20 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
             resolvedBy: $this->getIdentifier(),
             metadata: $context->metadata,
         );
+    }
+
+    private function shouldResolveWithoutPersistence(PaymentSubjectContext $context): bool
+    {
+        if ($context->source !== 'checkout.resolve_customer') {
+            return false;
+        }
+
+        return ! $this->requiresPersistedCustomerBeforePayment($context);
+    }
+
+    private function requiresPersistedCustomerBeforePayment(PaymentSubjectContext $context): bool
+    {
+        return $context->gateway === 'cashier';
     }
 
     private function toPaymentCustomer(Customer $customer, PaymentSubjectContext $context): PaymentCustomerData

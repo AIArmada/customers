@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Enums\AddressType;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
@@ -17,33 +18,133 @@ final class CustomerResolver
      * @param  array<string, mixed>  $billingData
      * @param  array<string, mixed>  $shippingData
      */
-    public function resolve(?Model $user, ?Customer $sessionCustomer, array $billingData, array $shippingData): ?Customer
-    {
-        $email = $this->resolveEmail($billingData, $shippingData, $user, $sessionCustomer);
+    public function resolveExisting(
+        ?Model $user,
+        ?Customer $sessionCustomer,
+        array $billingData,
+        array $shippingData,
+        Model | string | null $owner = OwnerContext::CURRENT,
+    ): ?Customer {
+        return $this->runWithinOwnerContext($owner, function () use ($billingData, $sessionCustomer, $shippingData, $user): ?Customer {
+            $email = $this->resolveEmail($billingData, $shippingData, $user, $sessionCustomer);
 
-        if ($user !== null) {
-            $userCustomer = $this->resolveUserCustomer($user);
+            if ($user !== null) {
+                $userCustomer = $this->findUserCustomer($user);
 
-            if ($userCustomer !== null) {
-                if ($sessionCustomer !== null && $sessionCustomer->is_guest && $sessionCustomer->id !== $userCustomer->id) {
-                    if ($this->customersShareOwnerContext($sessionCustomer, $userCustomer)) {
-                        $this->mergeCustomers($sessionCustomer, $userCustomer);
-                    }
+                if (
+                    $sessionCustomer !== null
+                    && $userCustomer !== null
+                    && $sessionCustomer->is_guest
+                    && $sessionCustomer->id !== $userCustomer->id
+                ) {
+                    return $sessionCustomer;
                 }
 
-                $this->syncCustomerProfileFromPayload($userCustomer, $billingData, $shippingData, $user);
-                $this->syncAddressesFromPayload($userCustomer, $billingData, $shippingData);
+                if ($userCustomer !== null) {
+                    return $userCustomer;
+                }
 
-                return $userCustomer;
+                return $sessionCustomer;
             }
 
-            if ($sessionCustomer !== null && $sessionCustomer->is_guest) {
-                $sessionCustomer->update([
-                    'user_id' => $user->getKey(),
-                    'is_guest' => false,
-                ]);
+            if ($sessionCustomer !== null) {
+                return $sessionCustomer;
+            }
 
-                $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, $user);
+            if ($email === null) {
+                return null;
+            }
+
+            return $this->findReusableGuestCustomerByEmail($email);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $billingData
+     * @param  array<string, mixed>  $shippingData
+     */
+    public function resolve(
+        ?Model $user,
+        ?Customer $sessionCustomer,
+        array $billingData,
+        array $shippingData,
+        Model | string | null $owner = OwnerContext::CURRENT,
+    ): ?Customer {
+        return $this->runWithinOwnerContext($owner, function () use ($billingData, $sessionCustomer, $shippingData, $user): ?Customer {
+            $email = $this->resolveEmail($billingData, $shippingData, $user, $sessionCustomer);
+
+            if ($user !== null) {
+                $userCustomer = $this->findUserCustomer($user);
+
+                if ($userCustomer !== null) {
+                    if ($sessionCustomer !== null && $sessionCustomer->is_guest && $sessionCustomer->id !== $userCustomer->id) {
+                        if ($this->customersShareOwnerContext($sessionCustomer, $userCustomer)) {
+                            $this->mergeCustomers($sessionCustomer, $userCustomer);
+                        }
+                    }
+
+                    $this->syncCustomerProfileFromPayload($userCustomer, $billingData, $shippingData, $user);
+                    $this->syncAddressesFromPayload($userCustomer, $billingData, $shippingData);
+
+                    return $userCustomer;
+                }
+
+                if ($sessionCustomer !== null && $sessionCustomer->is_guest) {
+                    $sessionCustomer->update([
+                        'user_id' => $user->getKey(),
+                        'is_guest' => false,
+                    ]);
+
+                    $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, $user);
+                    $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
+
+                    return $sessionCustomer;
+                }
+
+                if ($email === null) {
+                    return null;
+                }
+
+                $emailCustomer = $this->findCustomerByEmail($email);
+
+                if ($emailCustomer !== null) {
+                    if ($emailCustomer->user_id !== null && (string) $emailCustomer->user_id !== (string) $user->getKey()) {
+                        return null;
+                    }
+
+                    if (
+                        $sessionCustomer !== null
+                        && $sessionCustomer->is_guest
+                        && $sessionCustomer->id !== $emailCustomer->id
+                        && $this->customersShareOwnerContext($sessionCustomer, $emailCustomer)
+                    ) {
+                        $this->mergeCustomers($sessionCustomer, $emailCustomer);
+                    }
+
+                    $emailCustomer->fill([
+                        'user_id' => $user->getKey(),
+                        'is_guest' => false,
+                    ]);
+
+                    if ($emailCustomer->isDirty()) {
+                        $emailCustomer->save();
+                    }
+
+                    $this->syncCustomerProfileFromPayload($emailCustomer, $billingData, $shippingData, $user);
+                    $this->syncAddressesFromPayload($emailCustomer, $billingData, $shippingData);
+
+                    return $emailCustomer;
+                }
+
+                $customer = $this->createCustomer($email, $billingData, $shippingData, $user, false);
+                $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, $user);
+                $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
+
+                return $customer;
+            }
+
+            if ($sessionCustomer !== null) {
+                $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, null);
                 $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
 
                 return $sessionCustomer;
@@ -53,44 +154,25 @@ final class CustomerResolver
                 return null;
             }
 
-            $customer = $this->createCustomer($email, $billingData, $shippingData, $user, false);
-            $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, $user);
+            $existingCustomer = $this->findCustomerByEmail($email);
+
+            if ($existingCustomer !== null) {
+                if (! $existingCustomer->is_guest || $existingCustomer->user_id !== null) {
+                    return null;
+                }
+
+                $this->syncCustomerProfileFromPayload($existingCustomer, $billingData, $shippingData, null);
+                $this->syncAddressesFromPayload($existingCustomer, $billingData, $shippingData);
+
+                return $existingCustomer;
+            }
+
+            $customer = $this->createCustomer($email, $billingData, $shippingData, null, true);
+            $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, null);
             $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
 
             return $customer;
-        }
-
-        if ($sessionCustomer !== null) {
-            $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, null);
-            $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
-
-            return $sessionCustomer;
-        }
-
-        if ($email === null) {
-            return null;
-        }
-
-        $existingCustomer = Customer::query()
-            ->where('email', $email)
-            ->first();
-
-        if ($existingCustomer !== null) {
-            if (! $existingCustomer->is_guest || $existingCustomer->user_id !== null) {
-                return null;
-            }
-
-            $this->syncCustomerProfileFromPayload($existingCustomer, $billingData, $shippingData, null);
-            $this->syncAddressesFromPayload($existingCustomer, $billingData, $shippingData);
-
-            return $existingCustomer;
-        }
-
-        $customer = $this->createCustomer($email, $billingData, $shippingData, null, true);
-        $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, null);
-        $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
-
-        return $customer;
+        });
     }
 
     public function mergeCustomers(Customer $source, Customer $target): Customer
@@ -114,7 +196,7 @@ final class CustomerResolver
         return $target;
     }
 
-    private function resolveUserCustomer(Model $user): ?Customer
+    private function findUserCustomer(Model $user): ?Customer
     {
         if (method_exists($user, 'customer')) {
             /** @var Relation|null $relation */
@@ -142,14 +224,6 @@ final class CustomerResolver
             }
         }
 
-        if (method_exists($user, 'getOrCreateCustomerProfile')) {
-            $customer = $user->getOrCreateCustomerProfile();
-
-            if ($customer instanceof Customer) {
-                return $customer;
-            }
-        }
-
         $userId = $user->getKey();
 
         if ($userId === null) {
@@ -158,6 +232,28 @@ final class CustomerResolver
 
         return Customer::query()
             ->where('user_id', $userId)
+            ->first();
+    }
+
+    private function findReusableGuestCustomerByEmail(string $email): ?Customer
+    {
+        $existingCustomer = $this->findCustomerByEmail($email);
+
+        if ($existingCustomer === null) {
+            return null;
+        }
+
+        if (! $existingCustomer->is_guest || $existingCustomer->user_id !== null) {
+            return null;
+        }
+
+        return $existingCustomer;
+    }
+
+    private function findCustomerByEmail(string $email): ?Customer
+    {
+        return Customer::query()
+            ->where('email', $email)
             ->first();
     }
 
@@ -547,5 +643,24 @@ final class CustomerResolver
 
         return $source->owner_type === $target->owner_type
             && $source->owner_id === $target->owner_id;
+    }
+
+    /**
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function runWithinOwnerContext(Model | string | null $owner, callable $callback): mixed
+    {
+        if ($owner === OwnerContext::CURRENT) {
+            return $callback();
+        }
+
+        if ($owner !== null && ! $owner instanceof Model) {
+            throw new InvalidArgumentException('Owner resolver argument must be a model instance, null, or OwnerContext::CURRENT.');
+        }
+
+        return OwnerContext::withOwner($owner, $callback);
     }
 }
