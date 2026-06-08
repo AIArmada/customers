@@ -17,8 +17,8 @@ return new class extends Migration
             // Role in the group
             $table->string('role')->default('member'); // admin, member
 
-            $table->timestamp('joined_at')->nullable();
-            $table->timestamps();
+            $table->timestampTz('joined_at')->nullable();
+            $table->timestampsTz();
 
             $table->primary(['group_id', 'customer_id']);
         });

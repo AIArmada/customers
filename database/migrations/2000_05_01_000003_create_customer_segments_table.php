@@ -37,7 +37,7 @@ return new class extends Migration
 
             $table->{$jsonColumnType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->unique(['owner_type', 'owner_id', 'slug'], 'customers_segments_owner_slug_unique');

@@ -32,7 +32,7 @@ return new class extends Migration
             $table->{$jsonColumnType}('settings')->nullable();
             $table->{$jsonColumnType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index('is_active');
         });

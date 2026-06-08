@@ -49,7 +49,7 @@ return new class extends Migration
 
             $table->{$jsonColumnType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->index(['customer_id', 'type']);

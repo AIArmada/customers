@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignUuid('segment_id');
             $table->foreignUuid('customer_id');
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->primary(['segment_id', 'customer_id']);
         });

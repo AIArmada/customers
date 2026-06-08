@@ -38,7 +38,7 @@ return new class extends Migration
             // Metadata
             $table->{$jsonColumnType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes - email unique per owner for multitenancy
             $table->unique(['owner_type', 'owner_id', 'email'], 'customers_owner_email_unique');

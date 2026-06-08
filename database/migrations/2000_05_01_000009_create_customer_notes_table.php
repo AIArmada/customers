@@ -32,7 +32,7 @@ return new class extends Migration
 
             $table->{$jsonColumnType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['customer_id', 'is_pinned']);
             $table->index(['customer_id', 'is_internal']);
