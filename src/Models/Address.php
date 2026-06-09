@@ -6,9 +6,9 @@ namespace AIArmada\Customers\Models;
 
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Customers\Concerns\IsCustomerOwned;
 use AIArmada\Customers\Enums\AddressType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -16,7 +16,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -50,6 +49,7 @@ class Address extends Model implements Auditable
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use IsCustomerOwned;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -270,87 +270,5 @@ class Address extends Model implements Auditable
         return $query->where('is_verified', true);
     }
 
-    protected static function booted(): void
-    {
-        static::creating(function (Address $address): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $customer = Customer::query()
-                ->withoutOwnerScope()
-                ->whereKey($address->customer_id)
-                ->first();
-
-            if ($customer === null) {
-                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-            }
-
-            if ($owner === null) {
-                if ($customer->owner_type !== null || $customer->owner_id !== null) {
-                    throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-                }
-            } elseif (
-                $customer->owner_type !== $owner->getMorphClass()
-                || (string) $customer->owner_id !== (string) $owner->getKey()
-            ) {
-                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-            }
-
-            if (
-                ($address->owner_type !== null || $address->owner_id !== null)
-                && (
-                    $address->owner_type !== $customer->owner_type
-                    || (string) $address->owner_id !== (string) $customer->owner_id
-                )
-            ) {
-                throw new InvalidArgumentException('Address owner tuple must match the related customer owner tuple.');
-            }
-
-            if ($customer->owner_type !== null && $customer->owner_id !== null) {
-                $address->owner_type = $customer->owner_type;
-                $address->owner_id = $customer->owner_id;
-            } else {
-                $address->owner_type = null;
-                $address->owner_id = null;
-            }
-        });
-
-        static::updating(function (Address $address): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            if (! $address->isDirty('customer_id')) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $customer = Customer::query()
-                ->withoutOwnerScope()
-                ->whereKey($address->customer_id)
-                ->first();
-
-            if ($customer === null) {
-                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-            }
-
-            if ($owner === null) {
-                if ($customer->owner_type !== null || $customer->owner_id !== null) {
-                    throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-                }
-            } elseif (
-                $customer->owner_type !== $owner->getMorphClass()
-                || (string) $customer->owner_id !== (string) $owner->getKey()
-            ) {
-                throw new InvalidArgumentException('Address customer must belong to the current owner context.');
-            }
-
-            $address->owner_type = $customer->owner_type;
-            $address->owner_id = $customer->owner_id;
-        });
-    }
+    protected static function booted(): void {}
 }

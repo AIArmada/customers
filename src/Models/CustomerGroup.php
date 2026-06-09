@@ -6,9 +6,9 @@ namespace AIArmada\Customers\Models;
 
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Customers\Concerns\IsCustomerRelated;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -44,6 +44,7 @@ class CustomerGroup extends Model implements Auditable
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use IsCustomerRelated;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -227,26 +228,6 @@ class CustomerGroup extends Model implements Auditable
 
     protected static function booted(): void
     {
-        static::creating(function (CustomerGroup $group): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            if (! (bool) config('customers.features.owner.auto_assign_on_create', true)) {
-                return;
-            }
-
-            if ($group->owner_type !== null || $group->owner_id !== null) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            if ($owner !== null) {
-                $group->assignOwner($owner);
-            }
-        });
-
         static::deleting(function (CustomerGroup $group): void {
             $group->members()->detach();
         });

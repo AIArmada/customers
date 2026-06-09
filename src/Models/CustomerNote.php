@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Models;
 
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Customers\Concerns\IsCustomerOwned;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Carbon;
-use InvalidArgumentException;
 
 /**
  * @property string $id
@@ -36,6 +35,7 @@ class CustomerNote extends Model
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use IsCustomerOwned;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -164,87 +164,5 @@ class CustomerNote extends Model
         return $query->where('is_pinned', true);
     }
 
-    protected static function booted(): void
-    {
-        static::creating(function (CustomerNote $note): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $customer = Customer::query()
-                ->withoutOwnerScope()
-                ->whereKey($note->customer_id)
-                ->first();
-
-            if ($customer === null) {
-                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-            }
-
-            if ($owner === null) {
-                if ($customer->owner_type !== null || $customer->owner_id !== null) {
-                    throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-                }
-            } elseif (
-                $customer->owner_type !== $owner->getMorphClass()
-                || (string) $customer->owner_id !== (string) $owner->getKey()
-            ) {
-                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-            }
-
-            if (
-                ($note->owner_type !== null || $note->owner_id !== null)
-                && (
-                    $note->owner_type !== $customer->owner_type
-                    || (string) $note->owner_id !== (string) $customer->owner_id
-                )
-            ) {
-                throw new InvalidArgumentException('Customer note owner tuple must match the related customer owner tuple.');
-            }
-
-            if ($customer->owner_type !== null && $customer->owner_id !== null) {
-                $note->owner_type = $customer->owner_type;
-                $note->owner_id = $customer->owner_id;
-            } else {
-                $note->owner_type = null;
-                $note->owner_id = null;
-            }
-        });
-
-        static::updating(function (CustomerNote $note): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            if (! $note->isDirty('customer_id')) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $customer = Customer::query()
-                ->withoutOwnerScope()
-                ->whereKey($note->customer_id)
-                ->first();
-
-            if ($customer === null) {
-                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-            }
-
-            if ($owner === null) {
-                if ($customer->owner_type !== null || $customer->owner_id !== null) {
-                    throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-                }
-            } elseif (
-                $customer->owner_type !== $owner->getMorphClass()
-                || (string) $customer->owner_id !== (string) $owner->getKey()
-            ) {
-                throw new InvalidArgumentException('Customer note customer must belong to the current owner context.');
-            }
-
-            $note->owner_type = $customer->owner_type;
-            $note->owner_id = $customer->owner_id;
-        });
-    }
+    protected static function booted(): void {}
 }

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Services;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Customers\Actions\AssignCustomerToSegment;
+use AIArmada\Customers\Actions\RebuildAllSegments;
+use AIArmada\Customers\Actions\RemoveCustomerFromSegment;
 use AIArmada\Customers\Events\CustomerSegmentChanged;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Models\Segment;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * Service for managing customer segmentation.
@@ -22,6 +26,12 @@ use Illuminate\Support\Collection;
  */
 final class SegmentationService
 {
+    public function __construct(
+        private readonly AssignCustomerToSegment $assignCustomerToSegment,
+        private readonly RemoveCustomerFromSegment $removeCustomerFromSegment,
+        private readonly RebuildAllSegments $rebuildAllSegmentsAction,
+    ) {}
+
     /**
      * Rebuild all automatic segments.
      *
@@ -29,20 +39,7 @@ final class SegmentationService
      */
     public function rebuildAllSegments(?Model $owner = null): array
     {
-        return OwnerContext::withOwner($owner, function () use ($owner): array {
-            $query = Segment::query()->active()->automatic();
-
-            $query->forOwner($owner, includeGlobal: false);
-
-            $results = [];
-
-            $query->each(function (Segment $segment) use (&$results): void {
-                $count = $this->rebuildSegment($segment);
-                $results[$segment->name] = $count;
-            });
-
-            return $results;
-        });
+        return $this->rebuildAllSegmentsAction->forOwner($owner);
     }
 
     /**
@@ -50,54 +47,7 @@ final class SegmentationService
      */
     public function rebuildSegment(Segment $segment): int
     {
-        $segmentOwner = OwnerContext::fromTypeAndId($segment->owner_type, $segment->owner_id);
-
-        return OwnerContext::withOwner($segmentOwner, function () use ($segment, $segmentOwner): int {
-            if (! $segment->is_automatic) {
-                return $segment->customers()->count();
-            }
-
-            $matchingCustomers = $segment->getMatchingCustomers();
-            $currentCustomerIds = $segment->customers()->pluck('id')->toArray();
-            $newCustomerIds = $matchingCustomers->pluck('id')->toArray();
-
-            // Find customers added and removed
-            $addedIds = array_diff($newCustomerIds, $currentCustomerIds);
-            $removedIds = array_diff($currentCustomerIds, $newCustomerIds);
-
-            // Sync the segment
-            $segment->customers()->sync($newCustomerIds);
-
-            $changedIds = array_values(array_unique(array_merge($addedIds, $removedIds)));
-            if ($changedIds === []) {
-                return count($newCustomerIds);
-            }
-
-            // Fire events for changes (batch-loaded)
-            $customersById = Customer::query()
-                ->forOwner($segmentOwner, includeGlobal: false)
-                ->whereIn('id', $changedIds)
-                ->get()
-                ->keyBy('id');
-
-            foreach ($addedIds as $customerId) {
-                /** @var Customer|null $customer */
-                $customer = $customersById->get($customerId);
-                if ($customer !== null) {
-                    event(new CustomerSegmentChanged($customer, $segment, 'added'));
-                }
-            }
-
-            foreach ($removedIds as $customerId) {
-                /** @var Customer|null $customer */
-                $customer = $customersById->get($customerId);
-                if ($customer !== null) {
-                    event(new CustomerSegmentChanged($customer, $segment, 'removed'));
-                }
-            }
-
-            return count($newCustomerIds);
-        });
+        return $this->rebuildAllSegmentsAction->rebuildSegment($segment);
     }
 
     /**
@@ -206,10 +156,13 @@ final class SegmentationService
             return false;
         }
 
-        $customer->segments()->attach($segment->id);
-        event(new CustomerSegmentChanged($customer, $segment, 'added'));
+        try {
+            $this->assignCustomerToSegment->execute($customer, $segment);
 
-        return true;
+            return true;
+        } catch (InvalidArgumentException) {
+            return false;
+        }
     }
 
     /**
@@ -225,10 +178,13 @@ final class SegmentationService
             return false;
         }
 
-        $customer->segments()->detach($segment->id);
-        event(new CustomerSegmentChanged($customer, $segment, 'removed'));
+        try {
+            $this->removeCustomerFromSegment->execute($customer, $segment);
 
-        return true;
+            return true;
+        } catch (InvalidArgumentException) {
+            return false;
+        }
     }
 
     /**

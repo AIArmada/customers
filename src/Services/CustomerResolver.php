@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Services;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Customers\Actions\CreateCustomer;
+use AIArmada\Customers\Actions\UpdateCustomerProfile;
 use AIArmada\Customers\Enums\AddressType;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
@@ -14,6 +16,11 @@ use InvalidArgumentException;
 
 final class CustomerResolver
 {
+    public function __construct(
+        private readonly CreateCustomer $createCustomer,
+        private readonly UpdateCustomerProfile $updateCustomerProfile,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $billingData
      * @param  array<string, mixed>  $shippingData
@@ -83,7 +90,7 @@ final class CustomerResolver
                         }
                     }
 
-                    $this->syncCustomerProfileFromPayload($userCustomer, $billingData, $shippingData, $user);
+                    $this->updateCustomerProfile->execute($userCustomer, $billingData, $shippingData, $user);
                     $this->syncAddressesFromPayload($userCustomer, $billingData, $shippingData);
 
                     return $userCustomer;
@@ -95,7 +102,7 @@ final class CustomerResolver
                         'is_guest' => false,
                     ]);
 
-                    $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, $user);
+                    $this->updateCustomerProfile->execute($sessionCustomer, $billingData, $shippingData, $user);
                     $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
 
                     return $sessionCustomer;
@@ -130,21 +137,21 @@ final class CustomerResolver
                         $emailCustomer->save();
                     }
 
-                    $this->syncCustomerProfileFromPayload($emailCustomer, $billingData, $shippingData, $user);
+                    $this->updateCustomerProfile->execute($emailCustomer, $billingData, $shippingData, $user);
                     $this->syncAddressesFromPayload($emailCustomer, $billingData, $shippingData);
 
                     return $emailCustomer;
                 }
 
-                $customer = $this->createCustomer($email, $billingData, $shippingData, $user, false);
-                $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, $user);
+                $customer = $this->createCustomer->execute($email, $billingData, $shippingData, $user, false);
+                $this->updateCustomerProfile->execute($customer, $billingData, $shippingData, $user);
                 $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
 
                 return $customer;
             }
 
             if ($sessionCustomer !== null) {
-                $this->syncCustomerProfileFromPayload($sessionCustomer, $billingData, $shippingData, null);
+                $this->updateCustomerProfile->execute($sessionCustomer, $billingData, $shippingData, null);
                 $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
 
                 return $sessionCustomer;
@@ -161,14 +168,14 @@ final class CustomerResolver
                     return null;
                 }
 
-                $this->syncCustomerProfileFromPayload($existingCustomer, $billingData, $shippingData, null);
+                $this->updateCustomerProfile->execute($existingCustomer, $billingData, $shippingData, null);
                 $this->syncAddressesFromPayload($existingCustomer, $billingData, $shippingData);
 
                 return $existingCustomer;
             }
 
-            $customer = $this->createCustomer($email, $billingData, $shippingData, null, true);
-            $this->syncCustomerProfileFromPayload($customer, $billingData, $shippingData, null);
+            $customer = $this->createCustomer->execute($email, $billingData, $shippingData, null, true);
+            $this->updateCustomerProfile->execute($customer, $billingData, $shippingData, null);
             $this->syncAddressesFromPayload($customer, $billingData, $shippingData);
 
             return $customer;
@@ -255,80 +262,6 @@ final class CustomerResolver
         return Customer::query()
             ->where('email', $email)
             ->first();
-    }
-
-    /**
-     * @param  array<string, mixed>  $billingData
-     * @param  array<string, mixed>  $shippingData
-     */
-    private function createCustomer(
-        string $email,
-        array $billingData,
-        array $shippingData,
-        ?Model $user,
-        bool $isGuest,
-    ): Customer {
-        [$firstName, $lastName] = $this->resolveNameParts($billingData, $shippingData, $user);
-
-        $phone = $this->cleanString($billingData['phone'] ?? null)
-            ?? $this->cleanString($shippingData['phone'] ?? null)
-            ?? $this->cleanString($user?->getAttribute('phone'));
-        $company = $this->cleanString($billingData['company'] ?? null)
-            ?? $this->cleanString($shippingData['company'] ?? null);
-
-        return Customer::create([
-            'user_id' => $user?->getKey(),
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'email' => $email,
-            'phone' => $phone,
-            'company' => $company,
-            'is_guest' => $isGuest,
-        ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $billingData
-     * @param  array<string, mixed>  $shippingData
-     */
-    private function syncCustomerProfileFromPayload(
-        Customer $customer,
-        array $billingData,
-        array $shippingData,
-        ?Model $user,
-    ): void {
-        $updates = [];
-
-        $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
-
-        if ($nameParts !== null) {
-            [$firstName, $lastName] = $nameParts;
-            $updates['first_name'] = $firstName;
-            $updates['last_name'] = $lastName;
-        }
-
-        $phone = $this->cleanString($billingData['phone'] ?? null)
-            ?? $this->cleanString($shippingData['phone'] ?? null)
-            ?? $this->cleanString($user?->getAttribute('phone'));
-
-        if ($phone !== null) {
-            $updates['phone'] = $phone;
-        }
-
-        $company = $this->cleanString($billingData['company'] ?? null)
-            ?? $this->cleanString($shippingData['company'] ?? null);
-
-        if ($company !== null) {
-            $updates['company'] = $company;
-        }
-
-        if ($updates !== []) {
-            $customer->fill($updates);
-
-            if ($customer->isDirty()) {
-                $customer->save();
-            }
-        }
     }
 
     /**
@@ -532,43 +465,6 @@ final class CustomerResolver
     }
 
     /**
-     * @param  array<string, mixed>  $billingData
-     * @param  array<string, mixed>  $shippingData
-     * @return array{0: string, 1: string}
-     */
-    private function resolveNameParts(array $billingData, array $shippingData, ?Model $user): array
-    {
-        $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
-
-        return $nameParts ?? ['Guest', ''];
-    }
-
-    /**
-     * @param  array<string, mixed>  $billingData
-     * @param  array<string, mixed>  $shippingData
-     * @return array{0: string, 1: string}|null
-     */
-    private function resolveProvidedNameParts(array $billingData, array $shippingData, ?Model $user): ?array
-    {
-        $firstName = $this->cleanString($billingData['first_name'] ?? $shippingData['first_name'] ?? null);
-        $lastName = $this->cleanString($billingData['last_name'] ?? $shippingData['last_name'] ?? null);
-
-        if ($firstName !== null || $lastName !== null) {
-            return [$firstName ?? 'Guest', $lastName ?? ''];
-        }
-
-        $name = $this->cleanString(
-            $billingData['name']
-                ?? $billingData['full_name']
-                ?? $shippingData['name']
-                ?? $shippingData['full_name']
-                ?? $user?->getAttribute('name')
-        );
-
-        return $name !== null ? $this->splitName($name) : null;
-    }
-
-    /**
      * @param  array<string, mixed>  $data
      */
     private function resolveRecipientName(array $data): ?string
@@ -602,22 +498,6 @@ final class CustomerResolver
         }
 
         return null;
-    }
-
-    private function splitName(?string $name): array
-    {
-        $name = $this->cleanString($name) ?? '';
-
-        if ($name === '') {
-            return ['Guest', ''];
-        }
-
-        $parts = preg_split('/\s+/', $name) ?: [];
-
-        $firstName = $parts[0] ?? $name;
-        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '';
-
-        return [$firstName, $lastName];
     }
 
     private function cleanString(mixed $value): ?string

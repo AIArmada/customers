@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Customers\Concerns\IsCustomerRelated;
 use AIArmada\Customers\Enums\SegmentType;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -46,6 +47,7 @@ class Segment extends Model implements Auditable
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use IsCustomerRelated;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -261,26 +263,6 @@ class Segment extends Model implements Auditable
 
     protected static function booted(): void
     {
-        static::creating(function (Segment $segment): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            if (! (bool) config('customers.features.owner.auto_assign_on_create', true)) {
-                return;
-            }
-
-            if ($segment->owner_type !== null || $segment->owner_id !== null) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            if ($owner !== null) {
-                $segment->assignOwner($owner);
-            }
-        });
-
         static::deleting(function (Segment $segment): void {
             $segment->customers()->detach();
         });
