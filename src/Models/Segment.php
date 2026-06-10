@@ -34,6 +34,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property bool $is_automatic
  * @property int $priority
  * @property bool $is_active
+ * @property CarbonImmutable|null $deactivated_at
  * @property array<string, mixed>|null $metadata
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -80,6 +81,7 @@ class Segment extends Model implements Auditable
         'is_active' => 'boolean',
         'is_automatic' => 'boolean',
         'priority' => 'integer',
+        'deactivated_at' => 'immutable_datetime',
         'metadata' => 'array',
     ];
 
@@ -263,6 +265,12 @@ class Segment extends Model implements Auditable
 
     protected static function booted(): void
     {
+        static::saving(function (Segment $segment): void {
+            if ($segment->isDirty('is_active') && $segment->is_active === false && $segment->getOriginal('is_active') === true) {
+                $segment->deactivated_at = CarbonImmutable::now();
+            }
+        });
+
         static::deleting(function (Segment $segment): void {
             $segment->customers()->detach();
         });

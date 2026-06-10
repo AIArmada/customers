@@ -36,7 +36,6 @@ class AddressFactory extends Factory
             'country' => 'MY',
             'is_default_billing' => false,
             'is_default_shipping' => false,
-            'is_verified' => false,
         ];
     }
 
@@ -88,7 +87,7 @@ class AddressFactory extends Factory
     public function verified(): static
     {
         return $this->state(fn (array $attributes) => [
-            'is_verified' => true,
+            'verified_at' => now(),
             'coordinates' => [
                 'lat' => $this->faker->latitude(),
                 'lng' => $this->faker->longitude(),

@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -34,7 +35,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $country
  * @property bool $is_default_billing
  * @property bool $is_default_shipping
- * @property bool $is_verified
+ * @property CarbonImmutable|null $verified_at
  * @property array{lat?: float, lng?: float}|null $coordinates
  * @property array<string, mixed>|null $metadata
  * @property Carbon|null $created_at
@@ -63,7 +64,7 @@ class Address extends Model implements Auditable
         'type' => AddressType::class,
         'is_default_billing' => 'boolean',
         'is_default_shipping' => 'boolean',
-        'is_verified' => 'boolean',
+        'verified_at' => 'immutable_datetime',
         'coordinates' => 'array', // ['lat' => x, 'lng' => y]
         'metadata' => 'array',
     ];
@@ -74,7 +75,6 @@ class Address extends Model implements Auditable
     protected $attributes = [
         'is_default_billing' => false,
         'is_default_shipping' => false,
-        'is_verified' => false,
     ];
 
     public function getTable(): string
@@ -267,7 +267,7 @@ class Address extends Model implements Auditable
      */
     public function scopeVerified(Builder $query): Builder
     {
-        return $query->where('is_verified', true);
+        return $query->whereNotNull('verified_at');
     }
 
     protected static function booted(): void {}

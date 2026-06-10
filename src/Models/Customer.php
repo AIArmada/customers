@@ -41,6 +41,13 @@ use Spatie\Tags\HasTags;
  * @property CustomerStatus $status
  * @property bool $accepts_marketing
  * @property array<string, mixed>|null $metadata
+ * @property CarbonImmutable|null $registered_at
+ * @property CarbonImmutable|null $activated_at
+ * @property CarbonImmutable|null $deactivated_at
+ * @property CarbonImmutable|null $suspended_at
+ * @property CarbonImmutable|null $verified_at
+ * @property CarbonImmutable|null $marketing_consented_at
+ * @property CarbonImmutable|null $marketing_revoked_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read string $full_name
@@ -74,6 +81,13 @@ class Customer extends Model implements Auditable, HasMedia
         'accepts_marketing' => 'boolean',
         'is_guest' => 'boolean',
         'metadata' => 'array',
+        'registered_at' => 'immutable_datetime',
+        'activated_at' => 'immutable_datetime',
+        'deactivated_at' => 'immutable_datetime',
+        'suspended_at' => 'immutable_datetime',
+        'verified_at' => 'immutable_datetime',
+        'marketing_consented_at' => 'immutable_datetime',
+        'marketing_revoked_at' => 'immutable_datetime',
     ];
 
     /**
@@ -236,12 +250,18 @@ class Customer extends Model implements Auditable, HasMedia
 
     public function optInMarketing(): void
     {
-        $this->update(['accepts_marketing' => true]);
+        $this->update([
+            'accepts_marketing' => true,
+            'marketing_consented_at' => CarbonImmutable::now(),
+        ]);
     }
 
     public function optOutMarketing(): void
     {
-        $this->update(['accepts_marketing' => false]);
+        $this->update([
+            'accepts_marketing' => false,
+            'marketing_revoked_at' => CarbonImmutable::now(),
+        ]);
     }
 
     // =========================================================================

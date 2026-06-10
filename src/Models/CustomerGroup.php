@@ -11,10 +11,10 @@ use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Customers\Concerns\IsCustomerRelated;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
@@ -31,6 +31,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property bool $requires_approval
  * @property array<string, mixed>|null $settings
  * @property array<string, mixed>|null $metadata
+ * @property CarbonImmutable|null $deactivated_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Model|null $owner
@@ -58,6 +59,7 @@ class CustomerGroup extends Model implements Auditable
         'spending_limit' => 'integer',
         'is_active' => 'boolean',
         'requires_approval' => 'boolean',
+        'deactivated_at' => 'immutable_datetime',
         'settings' => 'array',
         'metadata' => 'array',
     ];
@@ -228,6 +230,12 @@ class CustomerGroup extends Model implements Auditable
 
     protected static function booted(): void
     {
+        static::saving(function (CustomerGroup $group): void {
+            if ($group->isDirty('is_active') && $group->is_active === false && $group->getOriginal('is_active') === true) {
+                $group->deactivated_at = CarbonImmutable::now();
+            }
+        });
+
         static::deleting(function (CustomerGroup $group): void {
             $group->members()->detach();
         });
