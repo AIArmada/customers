@@ -4,6 +4,47 @@ title: Usage Guide
 
 # Usage Guide
 
+## Actions
+
+The package provides action classes for common customer workflows:
+
+```php
+use AIArmada\Customers\Actions\CreateCustomer;
+use AIArmada\Customers\Actions\UpdateCustomerProfile;
+use AIArmada\Customers\Actions\AssignCustomerToSegment;
+use AIArmada\Customers\Actions\RemoveCustomerFromSegment;
+use AIArmada\Customers\Actions\RebuildAllSegments;
+
+// Create a new customer
+$customer = CreateCustomer::run(
+    email: 'john@example.com',
+    billingData: ['first_name' => 'John', 'last_name' => 'Doe'],
+    shippingData: [],
+    user: auth()->user(),
+    isGuest: true,
+);
+
+// Update an existing customer's profile from checkout payloads
+UpdateCustomerProfile::run(
+    customer: $customer,
+    billingData: ['phone' => '+60123456789'],
+    shippingData: [],
+    user: auth()->user(),
+);
+
+// Assign a customer to a segment (validates owner context)
+AssignCustomerToSegment::run(customer: $customer, segment: $segment);
+
+// Remove a customer from a segment (validates owner context)
+RemoveCustomerFromSegment::run(customer: $customer, segment: $segment);
+
+// Rebuild automatic segments for a specific owner
+RebuildAllSegments::run()->forOwner($owner);
+
+// Rebuild automatic segments across all owners
+RebuildAllSegments::run()->forAllOwners();
+```
+
 ## Creating Customers
 
 ### Basic Customer Creation

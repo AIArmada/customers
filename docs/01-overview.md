@@ -38,15 +38,32 @@ Use this package when you need the customer-side domain model: profiles, address
 
 ## Main models services or surfaces
 
+### Models
 - `Customer`
 - `Address`
 - `Segment`
 - `CustomerGroup`
 - `CustomerNote`
-- `CustomerResolver`
-- `CustomersPaymentSubjectDriver`
-- `SegmentationService`
-- `RebuildSegmentsCommand`
+
+### Actions
+- `CreateCustomer` — Create a customer from checkout payloads
+- `UpdateCustomerProfile` — Update profile fields from checkout payloads
+- `AssignCustomerToSegment` — Attach a customer to a segment (owner-safe)
+- `RemoveCustomerFromSegment` — Detach a customer from a segment (owner-safe)
+- `RebuildAllSegments` — Rebuild automatic segment memberships per owner
+
+### Concerns
+- `IsCustomerOwned` — Trait for models with a `customer_id` FK (validates owner tuple sync)
+- `IsCustomerRelated` — Trait for models related to customers (auto-assigns owner on create)
+- `HasCustomerProfile` — Trait implementing the `HasCustomerProfile` contract
+
+### Contracts
+- `HasCustomerProfile` — Interface for models (e.g. User) that expose a customer profile
+
+### Services & Drivers
+- `CustomerResolver` — Resolves the best customer record from authenticated user, session customer, and payloads
+- `CustomersPaymentSubjectDriver` — Payment subject driver registered into Commerce Support
+- `SegmentationService` — Evaluate and manage segment membership
 
 ## Features
 
@@ -113,11 +130,14 @@ Works seamlessly with:
 ## Architecture
 
 The package follows SOLID principles:
+- **Actions**: Reusable action classes for customer operations (CreateCustomer, UpdateCustomerProfile, AssignCustomerToSegment, RemoveCustomerFromSegment, RebuildAllSegments)
 - **Models**: Eloquent models with proper relationships
 - **Enums**: Type-safe status and type definitions
 - **Events**: Dispatchable events for all major actions
 - **Policies**: Authorization via Laravel policies
-- **Services**: Business logic encapsulation (SegmentationService)
+- **Concerns**: Reusable traits (IsCustomerOwned, IsCustomerRelated, HasCustomerProfile)
+- **Contracts**: Interfaces for extensibility (HasCustomerProfile)
+- **Services**: Business logic encapsulation (CustomerResolver, SegmentationService)
 - **Commands**: Artisan commands for maintenance tasks (RebuildSegmentsCommand)
 
 ## Read next
