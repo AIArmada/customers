@@ -29,7 +29,6 @@ return new class extends Migration
             // Recipient info
             $table->string('recipient_name')->nullable();
             $table->string('company')->nullable();
-            $table->string('phone')->nullable();
 
             // Address fields
             $table->string('line1');
@@ -37,7 +36,8 @@ return new class extends Migration
             $table->string('city');
             $table->string('state')->nullable();
             $table->string('postcode');
-            $table->string('country', 2)->default('MY'); // ISO 3166-1 alpha-2
+            $table->string('country_code', 2)->default('MY'); // ISO 3166-1 alpha-2
+            $table->string('country')->nullable(); // Full country name
 
             // Default flags
             $table->boolean('is_default_billing')->default(false);

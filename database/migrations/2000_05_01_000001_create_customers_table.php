@@ -24,8 +24,6 @@ return new class extends Migration
             // Basic info
             $table->string('first_name');
             $table->string('last_name');
-            $table->string('email');
-            $table->string('phone')->nullable();
             $table->string('company')->nullable();
 
             // Status
@@ -49,8 +47,7 @@ return new class extends Migration
 
             $table->timestampsTz();
 
-            // Indexes - email unique per owner for multitenancy
-            $table->unique(['owner_type', 'owner_id', 'email'], 'customers_owner_email_unique');
+            // Indexes
             $table->index(['status', 'accepts_marketing']);
             $table->index('is_guest');
             $table->index('activated_at');

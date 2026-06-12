@@ -7,6 +7,7 @@ namespace AIArmada\Customers\Models;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
+use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Customers\Concerns\IsCustomerOwned;
 use AIArmada\Customers\Enums\AddressType;
@@ -26,13 +27,13 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $label
  * @property string|null $recipient_name
  * @property string|null $company
- * @property string|null $phone
  * @property string $line1
  * @property string|null $line2
  * @property string $city
  * @property string|null $state
  * @property string $postcode
- * @property string $country
+ * @property string $country_code
+ * @property string|null $country
  * @property bool $is_default_billing
  * @property bool $is_default_shipping
  * @property CarbonImmutable|null $verified_at
@@ -46,6 +47,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 class Address extends Model implements Auditable
 {
     use HasCommerceAudit;
+    use HasContactMethods;
     use HasFactory;
     use HasOwner;
     use HasOwnerScopeConfig;
@@ -157,7 +159,7 @@ class Address extends Model implements Auditable
             $this->city,
             $this->state,
             $this->postcode,
-            $this->country,
+            $this->country_code,
         ]);
 
         return implode(', ', $parts);
@@ -194,10 +196,13 @@ class Address extends Model implements Auditable
             $this->postcode,
         ]));
 
-        $lines[] = $this->country;
+        $lines[] = $this->country_code;
 
-        if ($this->phone) {
-            $lines[] = $this->phone;
+        if ($this->relationLoaded('contactMethods')) {
+            $phone = $this->contactMethods()->where('type', 'phone')->first();
+            if ($phone) {
+                $lines[] = $phone->value;
+            }
         }
 
         return implode("\n", $lines);
@@ -216,8 +221,10 @@ class Address extends Model implements Auditable
             'city' => $this->city,
             'state' => $this->state,
             'postcode' => $this->postcode,
-            'country' => $this->country,
-            'phone' => $this->phone,
+            'country_code' => $this->country_code,
+            'phone' => $this->relationLoaded('contactMethods')
+                ? ($this->contactMethods()->where('type', 'phone')->first()?->value)
+                : null,
         ];
     }
 

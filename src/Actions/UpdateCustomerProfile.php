@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Actions;
 
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
 
@@ -29,14 +30,6 @@ final class UpdateCustomerProfile
             $updates['last_name'] = $lastName;
         }
 
-        $phone = $this->cleanString($billingData['phone'] ?? null)
-            ?? $this->cleanString($shippingData['phone'] ?? null)
-            ?? $this->cleanString($user?->getAttribute('phone'));
-
-        if ($phone !== null) {
-            $updates['phone'] = $phone;
-        }
-
         $company = $this->cleanString($billingData['company'] ?? null)
             ?? $this->cleanString($shippingData['company'] ?? null);
 
@@ -50,6 +43,19 @@ final class UpdateCustomerProfile
             if ($customer->isDirty()) {
                 $customer->save();
             }
+        }
+
+        $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? null);
+        if ($email !== null) {
+            $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+        }
+
+        $phone = $this->cleanString($billingData['phone'] ?? null)
+            ?? $this->cleanString($shippingData['phone'] ?? null)
+            ?? $this->cleanString($user?->getAttribute('phone'));
+
+        if ($phone !== null) {
+            $customer->addContactMethod(ContactMethodData::phone($phone, countryCode: 'MY', purpose: 'general'));
         }
     }
 

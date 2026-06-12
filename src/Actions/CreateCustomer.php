@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Actions;
 
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
 
@@ -22,21 +23,28 @@ final class CreateCustomer
     ): Customer {
         [$firstName, $lastName] = $this->resolveNameParts($billingData, $shippingData, $user);
 
-        $phone = $this->cleanString($billingData['phone'] ?? null)
-            ?? $this->cleanString($shippingData['phone'] ?? null)
-            ?? $this->cleanString($user?->getAttribute('phone'));
         $company = $this->cleanString($billingData['company'] ?? null)
             ?? $this->cleanString($shippingData['company'] ?? null);
 
-        return Customer::create([
+        $customer = Customer::create([
             'user_id' => $user?->getKey(),
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'email' => $email,
-            'phone' => $phone,
             'company' => $company,
             'is_guest' => $isGuest,
         ]);
+
+        $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+
+        $phone = $this->cleanString($billingData['phone'] ?? null)
+            ?? $this->cleanString($shippingData['phone'] ?? null)
+            ?? $this->cleanString($user?->getAttribute('phone'));
+
+        if ($phone !== null) {
+            $customer->addContactMethod(ContactMethodData::phone($phone, countryCode: 'MY', purpose: 'general'));
+        }
+
+        return $customer;
     }
 
     /**

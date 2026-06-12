@@ -33,7 +33,7 @@ class AddressFactory extends Factory
             'city' => $this->faker->city(),
             'state' => $this->faker->state(),
             'postcode' => $this->faker->postcode(),
-            'country' => 'MY',
+            'country_code' => 'MY',
             'is_default_billing' => false,
             'is_default_shipping' => false,
         ];

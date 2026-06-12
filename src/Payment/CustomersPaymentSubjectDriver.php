@@ -133,7 +133,7 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
             'city' => $this->cleanString($payload['city'] ?? null) ?? $defaultAddress?->city,
             'state' => $this->cleanString($payload['state'] ?? null) ?? $defaultAddress?->state,
             'postcode' => $this->cleanString($payload['postcode'] ?? null) ?? $defaultAddress?->postcode,
-            'country' => $this->cleanString($payload['country'] ?? null) ?? $defaultAddress?->country,
+            'country_code' => $this->cleanString($payload['country_code'] ?? null) ?? $defaultAddress?->country_code,
         ];
     }
 

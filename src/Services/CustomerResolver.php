@@ -334,7 +334,7 @@ final class CustomerResolver
             'city' => $city,
             'state' => $state,
             'postcode' => $postcode,
-            'country' => mb_strtoupper($country),
+            'country_code' => mb_strtoupper($country),
             'is_default_billing' => $defaultBilling,
             'is_default_shipping' => $defaultShipping,
         ];
@@ -350,7 +350,7 @@ final class CustomerResolver
             ->where('line1', $payload['line1'])
             ->where('city', $payload['city'])
             ->where('postcode', $payload['postcode'])
-            ->where('country', $payload['country']);
+            ->where('country_code', $payload['country_code']);
 
         if ($payload['line2'] === null) {
             $query->whereNull('line2');
