@@ -35,6 +35,15 @@ return new class extends Migration
             $table->boolean('accepts_marketing')->default(true);
             $table->boolean('is_guest')->default(false);
 
+            // Lifecycle
+            $table->timestampTz('registered_at')->nullable();
+            $table->timestampTz('activated_at')->nullable();
+            $table->timestampTz('deactivated_at')->nullable();
+            $table->timestampTz('suspended_at')->nullable();
+            $table->timestampTz('verified_at')->nullable();
+            $table->timestampTz('marketing_consented_at')->nullable();
+            $table->timestampTz('marketing_revoked_at')->nullable();
+
             // Metadata
             $table->{$jsonColumnType}('metadata')->nullable();
 
@@ -44,6 +53,8 @@ return new class extends Migration
             $table->unique(['owner_type', 'owner_id', 'email'], 'customers_owner_email_unique');
             $table->index(['status', 'accepts_marketing']);
             $table->index('is_guest');
+            $table->index('activated_at');
+            $table->index('suspended_at');
         });
     }
 

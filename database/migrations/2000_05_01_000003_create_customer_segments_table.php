@@ -34,6 +34,7 @@ return new class extends Migration
 
             // Status
             $table->boolean('is_active')->default(true);
+            $table->timestampTz('deactivated_at')->nullable();
 
             $table->{$jsonColumnType}('metadata')->nullable();
 

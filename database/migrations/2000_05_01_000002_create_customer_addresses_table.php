@@ -45,6 +45,7 @@ return new class extends Migration
 
             // Verification
             $table->boolean('is_verified')->default(false);
+            $table->timestampTz('verified_at')->nullable();
             $table->{$jsonColumnType}('coordinates')->nullable(); // lat/lng
 
             $table->{$jsonColumnType}('metadata')->nullable();

@@ -27,6 +27,7 @@ return new class extends Migration
             // Status
             $table->boolean('is_active')->default(true);
             $table->boolean('requires_approval')->default(true);
+            $table->timestampTz('deactivated_at')->nullable();
 
             // Settings
             $table->{$jsonColumnType}('settings')->nullable();
