@@ -69,7 +69,7 @@ trait HasCustomerProfile
 
             $customer->addContactMethod(ContactMethodData::email($email, 'general'));
 
-            if ($phone !== null && $phone !== '') {
+            if ($phone !== null) {
                 $customer->addContactMethod(ContactMethodData::phone(
                     $phone,
                     countryCode: config('contacting.defaults.country_code', 'MY'),
