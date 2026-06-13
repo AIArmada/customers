@@ -7,8 +7,8 @@ namespace AIArmada\Customers\Models;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
-use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\Customers\Concerns\IsCustomerOwned;
 use AIArmada\Customers\Enums\AddressType;
 use Carbon\CarbonImmutable;
@@ -27,6 +27,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $label
  * @property string|null $recipient_name
  * @property string|null $company
+ * @property string|null $phone
  * @property string $line1
  * @property string|null $line2
  * @property string $city
@@ -198,11 +199,14 @@ class Address extends Model implements Auditable
 
         $lines[] = $this->country_code;
 
+        $phone = $this->phone;
+
         if ($this->relationLoaded('contactMethods')) {
-            $phone = $this->contactMethods()->where('type', 'phone')->first();
-            if ($phone) {
-                $lines[] = $phone->value;
-            }
+            $phone = $this->contactMethods->firstWhere('type', 'phone')?->value ?? $phone;
+        }
+
+        if ($phone !== null && $phone !== '') {
+            $lines[] = $phone;
         }
 
         return implode("\n", $lines);
@@ -223,8 +227,8 @@ class Address extends Model implements Auditable
             'postcode' => $this->postcode,
             'country_code' => $this->country_code,
             'phone' => $this->relationLoaded('contactMethods')
-                ? ($this->contactMethods()->where('type', 'phone')->first()?->value)
-                : null,
+                ? ($this->contactMethods->firstWhere('type', 'phone')?->value ?? $this->phone)
+                : $this->phone,
         ];
     }
 

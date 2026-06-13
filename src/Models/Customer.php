@@ -7,10 +7,10 @@ namespace AIArmada\Customers\Models;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\Contacting\Concerns\HasContactMethods;
-use AIArmada\Contacting\Concerns\HasSocialProfiles;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Contacting\Concerns\HasContactMethods;
+use AIArmada\Contacting\Concerns\HasSocialProfiles;
 use AIArmada\Customers\Enums\CustomerStatus;
 use AIArmada\Customers\Events\CustomerCreated;
 use AIArmada\Customers\Events\CustomerUpdated;
@@ -36,6 +36,8 @@ use Spatie\Tags\HasTags;
  * @property string|null $user_id
  * @property string $first_name
  * @property string $last_name
+ * @property string $email
+ * @property string|null $phone
  * @property string|null $company
  * @property bool $is_guest
  * @property CustomerStatus $status
@@ -64,8 +66,8 @@ class Customer extends Model implements Auditable, HasMedia
     use HasContactMethods;
     use HasFactory;
     use HasOwner;
-    use HasSocialProfiles;
     use HasOwnerScopeConfig;
+    use HasSocialProfiles;
     use HasTags;
     use HasUuids;
     use InteractsWithMedia;
@@ -407,6 +409,8 @@ class Customer extends Model implements Auditable, HasMedia
         return [
             'first_name',
             'last_name',
+            'email',
+            'phone',
             'status',
             'accepts_marketing',
         ];

@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace AIArmada\Customers\Services;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Contacting\Models\ContactMethod;
+use AIArmada\Contacting\Models\SocialProfile;
 use AIArmada\Customers\Actions\CreateCustomer;
 use AIArmada\Customers\Actions\UpdateCustomerProfile;
 use AIArmada\Customers\Enums\AddressType;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class CustomerResolver
@@ -188,19 +192,28 @@ final class CustomerResolver
             throw new InvalidArgumentException('Cannot merge customers across different owner contexts.');
         }
 
-        $this->moveAddresses($source, $target);
-        $this->mergeSegments($source, $target);
-        $this->mergeGroups($source, $target);
-        $this->moveNotes($source, $target);
+        $owner = $source->owner ?? $target->owner ?? null;
 
-        if (! empty($source->metadata) && empty($target->metadata)) {
-            $target->metadata = $source->metadata;
-            $target->save();
-        }
+        return $this->runWithinOwnerContext($owner, function () use ($source, $target): Customer {
+            DB::transaction(function () use ($source, $target): void {
+                $this->mergeScalarContactDetails($source, $target);
+                $this->moveAddresses($source, $target);
+                $this->moveContactMethods($source, $target);
+                $this->moveSocialProfiles($source, $target);
+                $this->mergeSegments($source, $target);
+                $this->mergeGroups($source, $target);
+                $this->moveNotes($source, $target);
 
-        $source->delete();
+                if (! empty($source->metadata) && empty($target->metadata)) {
+                    $target->metadata = $source->metadata;
+                    $target->save();
+                }
 
-        return $target;
+                $source->delete();
+            });
+
+            return $target->refresh();
+        });
     }
 
     private function findUserCustomer(Model $user): ?Customer
@@ -259,8 +272,16 @@ final class CustomerResolver
 
     private function findCustomerByEmail(string $email): ?Customer
     {
+        $normalizedEmail = mb_strtolower(mb_trim($email));
+
         return Customer::query()
-            ->where('email', $email)
+            ->where(function (Builder $query) use ($normalizedEmail): void {
+                $query->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+                    ->orWhereHas('contactMethods', function (Builder $contactMethods) use ($normalizedEmail): void {
+                        $contactMethods->where('type', 'email')
+                            ->whereRaw('LOWER(COALESCE(normalized_value, value)) = ?', [$normalizedEmail]);
+                    });
+            })
             ->first();
     }
 
@@ -396,12 +417,14 @@ final class CustomerResolver
 
     private function isDuplicateAddress(Customer $customer, Address $address): bool
     {
+        $countryCode = $this->resolveAddressCountryCode($address);
+
         $query = $customer->addresses()
             ->where('type', $address->type->value)
             ->where('line1', $address->line1)
             ->where('city', $address->city)
             ->where('postcode', $address->postcode)
-            ->where('country', $address->country);
+            ->where('country_code', $countryCode);
 
         if ($address->line2 === null) {
             $query->whereNull('line2');
@@ -416,6 +439,71 @@ final class CustomerResolver
         }
 
         return $query->exists();
+    }
+
+    private function moveContactMethods(Customer $source, Customer $target): void
+    {
+        $source->loadMissing('contactMethods');
+
+        foreach ($source->contactMethods as $contactMethod) {
+            if ($contactMethod->is_primary && $this->targetHasPrimaryContactMethod($target, $contactMethod)) {
+                $contactMethod->is_primary = false;
+            }
+
+            $contactMethod->contactable()->associate($target);
+            $contactMethod->save();
+        }
+    }
+
+    private function moveSocialProfiles(Customer $source, Customer $target): void
+    {
+        $source->loadMissing('socialProfiles');
+
+        foreach ($source->socialProfiles as $socialProfile) {
+            if ($socialProfile->is_primary && $this->targetHasPrimarySocialProfile($target, $socialProfile)) {
+                $socialProfile->is_primary = false;
+            }
+
+            $socialProfile->socialable()->associate($target);
+            $socialProfile->save();
+        }
+    }
+
+    private function mergeScalarContactDetails(Customer $source, Customer $target): void
+    {
+        $updates = [];
+
+        if (($target->email === null || $target->email === '') && $source->email !== null && $source->email !== '') {
+            $updates['email'] = $source->email;
+        }
+
+        if (($target->phone === null || $target->phone === '') && $source->phone !== null && $source->phone !== '') {
+            $updates['phone'] = $source->phone;
+        }
+
+        if ($updates === []) {
+            return;
+        }
+
+        $target->forceFill($updates)->save();
+    }
+
+    private function targetHasPrimaryContactMethod(Customer $target, ContactMethod $contactMethod): bool
+    {
+        return $target->contactMethods()
+            ->where('type', $contactMethod->type)
+            ->where('purpose', $contactMethod->purpose)
+            ->where('is_primary', true)
+            ->exists();
+    }
+
+    private function targetHasPrimarySocialProfile(Customer $target, SocialProfile $socialProfile): bool
+    {
+        return $target->socialProfiles()
+            ->where('platform', $socialProfile->platform)
+            ->where('purpose', $socialProfile->purpose)
+            ->where('is_primary', true)
+            ->exists();
     }
 
     private function mergeSegments(Customer $source, Customer $target): void
@@ -449,19 +537,50 @@ final class CustomerResolver
         $source->notes()->update(['customer_id' => $target->id]);
     }
 
+    private function resolveAddressCountryCode(Address $address): ?string
+    {
+        $countryCode = $this->cleanString($address->country_code ?? null)
+            ?? $this->cleanString($address->country ?? null);
+
+        return $countryCode === null ? null : mb_strtoupper($countryCode);
+    }
+
     /**
      * @param  array<string, mixed>  $billingData
      * @param  array<string, mixed>  $shippingData
      */
     private function resolveEmail(array $billingData, array $shippingData, ?Model $user, ?Customer $sessionCustomer): ?string
     {
-        $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? $user?->getAttribute('email') ?? $sessionCustomer?->email);
+        $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? $user?->getAttribute('email'));
 
         if ($email === null) {
-            return null;
+            return $this->resolveCustomerEmail($sessionCustomer);
         }
 
         return mb_strtolower($email);
+    }
+
+    private function resolveCustomerEmail(?Customer $customer): ?string
+    {
+        if ($customer === null) {
+            return null;
+        }
+
+        $email = $this->cleanString($customer->getAttribute('email'));
+
+        if ($email !== null) {
+            return mb_strtolower($email);
+        }
+
+        $emailContactMethod = $customer->contactMethods()
+            ->where('type', 'email')
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->first();
+
+        $email = $this->cleanString($emailContactMethod?->normalized_value ?? $emailContactMethod?->value);
+
+        return $email === null ? null : mb_strtolower($email);
     }
 
     /**

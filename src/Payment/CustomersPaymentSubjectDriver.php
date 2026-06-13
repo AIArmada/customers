@@ -42,7 +42,7 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
         $sessionCustomer = $context->subject instanceof Customer
             ? $context->subject
             : ($context->sessionCustomer instanceof Customer ? $context->sessionCustomer : null);
-        $owner = $context->owner ?? OwnerContext::CURRENT;
+        $owner = $context->owner;
 
         $customer = $this->shouldResolveWithoutPersistence($context)
             ? $this->customerResolver->resolveExisting(
@@ -66,7 +66,7 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
 
         return new ResolvedPaymentSubject(
             subject: $customer,
-            paymentCustomer: $this->toPaymentCustomer($customer, $context),
+            paymentCustomer: OwnerContext::withOwner($owner, fn (): PaymentCustomerData => $this->toPaymentCustomer($customer, $context)),
             isGuest: $customer->isGuest(),
             resolvedBy: $this->getIdentifier(),
             metadata: $context->metadata,
@@ -97,24 +97,26 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
             $context->shippingData,
             $customer->getDefaultShippingAddress(),
         );
+        $billingCountry = $billingAddress['country_code'] ?? $billingAddress['country'] ?? null;
+        $shippingCountry = $shippingAddress['country_code'] ?? $shippingAddress['country'] ?? null;
 
         return new PaymentCustomerData(
-            email: $this->resolveEmail($context) ?? $customer->email,
+            email: $this->resolveEmail($context) ?? $this->resolveCustomerEmail($customer),
             name: $customer->full_name,
             phone: $this->cleanString($context->billingData['phone'] ?? null)
                 ?? $this->cleanString($context->shippingData['phone'] ?? null)
-                ?? $customer->phone,
-            country: $billingAddress['country'] ?? $shippingAddress['country'] ?? 'MY',
+                ?? $this->resolveCustomerPhone($customer),
+            country: $billingCountry ?? $shippingCountry ?? 'MY',
             billingStreetAddress: $billingAddress['line1'] ?? null,
             billingCity: $billingAddress['city'] ?? null,
             billingState: $billingAddress['state'] ?? null,
             billingPostalCode: $billingAddress['postcode'] ?? null,
-            billingCountry: $billingAddress['country'] ?? null,
+            billingCountry: $billingCountry,
             shippingStreetAddress: $shippingAddress['line1'] ?? null,
             shippingCity: $shippingAddress['city'] ?? null,
             shippingState: $shippingAddress['state'] ?? null,
             shippingPostalCode: $shippingAddress['postcode'] ?? null,
-            shippingCountry: $shippingAddress['country'] ?? null,
+            shippingCountry: $shippingCountry,
             metadata: array_filter([
                 ...$context->metadata,
                 'customer_id' => $customer->id,
@@ -133,7 +135,9 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
             'city' => $this->cleanString($payload['city'] ?? null) ?? $defaultAddress?->city,
             'state' => $this->cleanString($payload['state'] ?? null) ?? $defaultAddress?->state,
             'postcode' => $this->cleanString($payload['postcode'] ?? null) ?? $defaultAddress?->postcode,
-            'country_code' => $this->cleanString($payload['country_code'] ?? null) ?? $defaultAddress?->country_code,
+            'country_code' => $this->cleanString($payload['country_code'] ?? $payload['country'] ?? null)
+                ?? $defaultAddress?->country_code
+                ?? $defaultAddress?->country,
         ];
     }
 
@@ -142,6 +146,40 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
         return $this->cleanString($context->billingData['email'] ?? null)
             ?? $this->cleanString($context->shippingData['email'] ?? null)
             ?? $this->cleanString($context->actor?->getAttribute('email'));
+    }
+
+    private function resolveCustomerEmail(Customer $customer): ?string
+    {
+        $email = $this->cleanString($customer->getAttribute('email'));
+
+        if ($email !== null) {
+            return mb_strtolower($email);
+        }
+
+        $emailContactMethod = $customer->contactMethods()
+            ->where('type', 'email')
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->first();
+
+        return $this->cleanString($emailContactMethod?->normalized_value ?? $emailContactMethod?->value);
+    }
+
+    private function resolveCustomerPhone(Customer $customer): ?string
+    {
+        $phone = $this->cleanString($customer->getAttribute('phone'));
+
+        if ($phone !== null) {
+            return $phone;
+        }
+
+        $phoneContactMethod = $customer->contactMethods()
+            ->where('type', 'phone')
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->first();
+
+        return $this->cleanString($phoneContactMethod?->normalized_value ?? $phoneContactMethod?->value);
     }
 
     private function cleanString(mixed $value): ?string

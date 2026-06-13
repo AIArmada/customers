@@ -7,6 +7,7 @@ namespace AIArmada\Customers\Actions;
 use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 final class UpdateCustomerProfile
 {
@@ -20,43 +21,54 @@ final class UpdateCustomerProfile
         array $shippingData,
         ?Model $user,
     ): void {
-        $updates = [];
+        DB::transaction(function () use ($billingData, $customer, $shippingData, $user): void {
+            $updates = [];
 
-        $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
+            $nameParts = $this->resolveProvidedNameParts($billingData, $shippingData, $user);
 
-        if ($nameParts !== null) {
-            [$firstName, $lastName] = $nameParts;
-            $updates['first_name'] = $firstName;
-            $updates['last_name'] = $lastName;
-        }
-
-        $company = $this->cleanString($billingData['company'] ?? null)
-            ?? $this->cleanString($shippingData['company'] ?? null);
-
-        if ($company !== null) {
-            $updates['company'] = $company;
-        }
-
-        if ($updates !== []) {
-            $customer->fill($updates);
-
-            if ($customer->isDirty()) {
-                $customer->save();
+            if ($nameParts !== null) {
+                [$firstName, $lastName] = $nameParts;
+                $updates['first_name'] = $firstName;
+                $updates['last_name'] = $lastName;
             }
-        }
 
-        $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? null);
-        if ($email !== null) {
-            $customer->addContactMethod(ContactMethodData::email($email, 'general'));
-        }
+            $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? null);
 
-        $phone = $this->cleanString($billingData['phone'] ?? null)
-            ?? $this->cleanString($shippingData['phone'] ?? null)
-            ?? $this->cleanString($user?->getAttribute('phone'));
+            if ($email !== null) {
+                $updates['email'] = mb_strtolower($email);
+            }
 
-        if ($phone !== null) {
-            $customer->addContactMethod(ContactMethodData::phone($phone, countryCode: 'MY', purpose: 'general'));
-        }
+            $phone = $this->cleanString($billingData['phone'] ?? null)
+                ?? $this->cleanString($shippingData['phone'] ?? null)
+                ?? $this->cleanString($user?->getAttribute('phone'));
+
+            if ($phone !== null) {
+                $updates['phone'] = $phone;
+            }
+
+            $company = $this->cleanString($billingData['company'] ?? null)
+                ?? $this->cleanString($shippingData['company'] ?? null);
+
+            if ($company !== null) {
+                $updates['company'] = $company;
+            }
+
+            if ($updates !== []) {
+                $customer->fill($updates);
+
+                if ($customer->isDirty()) {
+                    $customer->save();
+                }
+            }
+
+            if ($email !== null) {
+                $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+            }
+
+            if ($phone !== null) {
+                $customer->addContactMethod(ContactMethodData::phone($phone, countryCode: 'MY', purpose: 'general'));
+            }
+        });
     }
 
     /**

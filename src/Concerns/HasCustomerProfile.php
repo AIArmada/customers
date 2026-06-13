@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Concerns;
 
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -43,20 +45,40 @@ trait HasCustomerProfile
             return $customer;
         }
 
-        $email = $this->email;
+        $email = is_string($this->email)
+            ? mb_strtolower(mb_trim($this->email))
+            : '';
 
-        if (! is_string($email) || mb_trim($email) === '') {
+        if ($email === '') {
             throw new InvalidArgumentException('User email is required to create a customer profile.');
         }
 
         [$firstName, $lastName] = $this->splitName($this->name);
+        $phone = is_string($this->phone) ? mb_trim($this->phone) : null;
+        $phone = $phone === '' ? null : $phone;
+        $userId = $this->getKey();
 
-        return $this->customerProfile()->create([
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'email' => $email,
-            'phone' => $this->phone ?? null,
-        ]);
+        return DB::transaction(function () use ($email, $firstName, $lastName, $phone, $userId): Customer {
+            $customer = Customer::create([
+                'user_id' => $userId,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email,
+                'phone' => $phone,
+            ]);
+
+            $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+
+            if ($phone !== null && $phone !== '') {
+                $customer->addContactMethod(ContactMethodData::phone(
+                    $phone,
+                    countryCode: config('contacting.defaults.country_code', 'MY'),
+                    purpose: 'general',
+                ));
+            }
+
+            return $customer;
+        });
     }
 
     /**

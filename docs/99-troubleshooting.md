@@ -113,8 +113,15 @@ php artisan migrate:refresh
 **Solution**: Ensure unique fields are truly unique:
 
 ```php
-// Check for existing customer
-$existing = Customer::where('email', $email)->first();
+use Illuminate\Database\Eloquent\Builder;
+
+$normalizedEmail = mb_strtolower(mb_trim($email));
+
+// Check for an existing customer by email contact method
+$existing = Customer::whereHas('contactMethods', function (Builder $query) use ($normalizedEmail): void {
+    $query->where('type', 'email')
+        ->where('normalized_value', $normalizedEmail);
+})->first();
 
 if ($existing) {
     // Update existing or return error
