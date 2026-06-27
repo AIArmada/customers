@@ -24,8 +24,4 @@ return new class extends Migration
         });
     }
 
-    public function down(): void
-    {
-        Schema::dropIfExists(config('customers.database.tables.group_members', 'customer_group_members'));
-    }
 };

@@ -20,8 +20,4 @@ return new class extends Migration
         });
     }
 
-    public function down(): void
-    {
-        Schema::dropIfExists(config('customers.database.tables.segment_customer', 'customer_segment_customer'));
-    }
 };
