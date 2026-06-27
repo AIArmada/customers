@@ -53,7 +53,20 @@ class Segment extends Model implements Auditable
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'owner_type',
+        'owner_id',
+        'name',
+        'slug',
+        'description',
+        'type',
+        'conditions',
+        'is_automatic',
+        'priority',
+        'is_active',
+        'deactivated_at',
+        'metadata',
+    ];
 
     public function getAuditInclude(): array
     {

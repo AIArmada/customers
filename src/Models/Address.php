@@ -58,7 +58,29 @@ class Address extends Model implements Auditable
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'owner_type',
+        'owner_id',
+        'customer_id',
+        'type',
+        'label',
+        'recipient_name',
+        'company',
+        'phone',
+        'line1',
+        'line2',
+        'city',
+        'state',
+        'postcode',
+        'country_code',
+        'country',
+        'is_default_billing',
+        'is_default_shipping',
+        'is_verified',
+        'verified_at',
+        'coordinates',
+        'metadata',
+    ];
 
     /**
      * @var array<string, string>

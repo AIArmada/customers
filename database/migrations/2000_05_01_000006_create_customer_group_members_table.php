@@ -23,5 +23,4 @@ return new class extends Migration
             $table->primary(['group_id', 'customer_id']);
         });
     }
-
 };

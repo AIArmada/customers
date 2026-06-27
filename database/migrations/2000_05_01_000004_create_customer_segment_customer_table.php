@@ -19,5 +19,4 @@ return new class extends Migration
             $table->primary(['segment_id', 'customer_id']);
         });
     }
-
 };

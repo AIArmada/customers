@@ -40,7 +40,16 @@ class CustomerNote extends Model
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'owner_type',
+        'owner_id',
+        'customer_id',
+        'created_by',
+        'content',
+        'is_internal',
+        'is_pinned',
+        'metadata',
+    ];
 
     /**
      * @var array<string, string>

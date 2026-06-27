@@ -59,5 +59,4 @@ return new class extends Migration
             $table->index(['customer_id', 'is_default_shipping']);
         });
     }
-
 };

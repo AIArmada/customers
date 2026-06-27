@@ -75,7 +75,29 @@ class Customer extends Model implements Auditable, HasMedia
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'owner_type',
+        'owner_id',
+        'user_id',
+        'first_name',
+        'last_name',
+        'email',
+        'phone',
+        'company',
+        'status',
+        'is_guest',
+        'accepts_marketing',
+        'registered_at',
+        'activated_at',
+        'deactivated_at',
+        'suspended_at',
+        'verified_at',
+        'marketing_consented_at',
+        'marketing_revoked_at',
+        'metadata',
+        'created_at',
+        'updated_at',
+    ];
 
     /**
      * @var array<string, string>
