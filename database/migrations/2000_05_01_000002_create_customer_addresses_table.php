@@ -29,6 +29,7 @@ return new class extends Migration
             // Recipient info
             $table->string('recipient_name')->nullable();
             $table->string('company')->nullable();
+            $table->string('phone')->nullable()->after('company');
 
             // Address fields
             $table->string('line1');
