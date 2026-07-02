@@ -97,7 +97,7 @@ For production environments, consider:
 // config/customers.php
 return [
     'database' => [
-        'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'json')),
+        'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
     'features' => [
         'owner' => [
@@ -145,17 +145,31 @@ echo "Customer created: {$customer->full_name}";
 
 ## Scheduled Tasks
 
-If using automatic segmentation, add to your `routes/console.php` or `app/Console/Kernel.php`:
+If using automatic segmentation, add to your `routes/console.php`:
 
 ```php
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('customers:rebuild-segments')
+Schedule::command('customers:rebuild-segments --all-owners')
     ->daily()
     ->at('03:00');
 ```
 
-This rebuilds automatic segments nightly to keep them up-to-date.
+The command supports owner-scoped rebuilding:
+
+```bash
+# Rebuild all segments for current owner context
+php artisan customers:rebuild-segments
+
+# Rebuild segments for specific owner
+php artisan customers:rebuild-segments --owner-type=App\Models\Team --owner-id=uuid
+
+# Rebuild all owner-scoped segments
+php artisan customers:rebuild-segments --all-owners
+
+# Dry run to preview changes
+php artisan customers:rebuild-segments --dry-run
+```
 
 ## Next Steps
 

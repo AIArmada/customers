@@ -33,7 +33,7 @@ Configure JSON column type for PostgreSQL or MySQL:
 
 ```php
 'database' => [
-    'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', 'json'),
+    'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     // Use 'jsonb' for PostgreSQL for better performance
 ],
 ```
@@ -47,7 +47,7 @@ The owner config lives under `customers.features.owner`.
 ```php
 'features' => [
     'owner' => [
-        'enabled' => env('CUSTOMERS_OWNER_ENABLED', true),
+        'enabled' => env('CUSTOMERS_OWNER_ENABLED', false),
         'include_global' => env('CUSTOMERS_OWNER_INCLUDE_GLOBAL', false),
         'auto_assign_on_create' => env('CUSTOMERS_OWNER_AUTO_ASSIGN', true),
     ],
