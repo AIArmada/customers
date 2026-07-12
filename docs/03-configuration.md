@@ -29,14 +29,7 @@ Configure custom table names:
 
 ### JSON Column Type
 
-Configure JSON column type for PostgreSQL or MySQL:
-
-```php
-'database' => [
-    'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
-    // Use 'jsonb' for PostgreSQL for better performance
-],
-```
+The JSON column type is controlled by the `commerce_json_column_type('customers', 'jsonb')` helper, which reads the `COMMERCE_JSON_COLUMN_TYPE` env variable or the database default.
 
 ## Features
 
@@ -94,7 +87,6 @@ You can override configuration via environment variables:
 CUSTOMERS_OWNER_ENABLED=true
 CUSTOMERS_OWNER_INCLUDE_GLOBAL=false
 CUSTOMERS_OWNER_AUTO_ASSIGN=true
-CUSTOMERS_JSON_COLUMN_TYPE=json
 ```
 
 ## Usage Examples
@@ -146,15 +138,7 @@ $table->index('type');
 
 ### JSON Column Optimization
 
-For PostgreSQL, use `jsonb` for better performance:
-
-```php
-'database' => [
-    'json_column_type' => 'jsonb',
-],
-```
-
-Then add GIN indexes on metadata columns (manual migration):
+For PostgreSQL, `jsonb` is used by default. Add GIN indexes on metadata columns (manual migration):
 
 ```php
 Schema::table('customers', function (Blueprint $table) {

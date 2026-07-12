@@ -16,7 +16,7 @@ return [
             'group_members' => 'customer_group_members',
             'notes' => 'customer_notes',
         ],
-        'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
+
     ],
 
     // Features
