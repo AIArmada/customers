@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\CommerceSupport\Traits\HasOwnerScopeKey;
 use AIArmada\Customers\Concerns\IsCustomerRelated;
 use AIArmada\Customers\Enums\SegmentType;
 use Carbon\CarbonImmutable;
@@ -47,6 +48,7 @@ class Segment extends Model implements Auditable
     use HasFactory;
     use HasOwner;
     use HasOwnerScopeConfig;
+    use HasOwnerScopeKey;
     use HasUuids;
     use IsCustomerRelated;
     use LogsCommerceActivity;
