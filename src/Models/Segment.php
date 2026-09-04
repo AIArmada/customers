@@ -300,7 +300,7 @@ class Segment extends Model implements Auditable
      * Apply segment conditions to a query.
      *
      * Conditions can use either 'value_numeric' / 'value_boolean' keys (Filament form)
-     * or a single 'value' key (legacy/API). We normalize before matching.
+     * or a single public API 'value' key. We normalize before matching.
      *
      * @param  array<int, array{field?: string|null, operator?: string, value?: mixed, value_numeric?: mixed, value_boolean?: mixed}>  $conditions
      */

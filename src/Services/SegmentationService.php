@@ -220,7 +220,7 @@ final class SegmentationService
      * Evaluate a single condition against a customer.
      *
      * Conditions can use 'value_numeric', 'value_boolean', 'value_status' keys (Filament form)
-     * or a single 'value' key (legacy/API). We normalize before matching.
+     * or a single public API 'value' key. We normalize before matching.
      *
      * @param  array<string, mixed>  $condition
      */
