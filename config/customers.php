@@ -7,6 +7,7 @@ return [
     // Database
     'database' => [
         'table_prefix' => 'customer_',
+        'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', 'jsonb'),
         'tables' => [
             'customers' => 'customers',
             'addresses' => 'customer_addresses',

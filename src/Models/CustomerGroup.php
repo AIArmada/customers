@@ -51,8 +51,6 @@ class CustomerGroup extends Model implements Auditable
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
     protected $fillable = [
-        'owner_type',
-        'owner_id',
         'name',
         'description',
         'spending_limit',

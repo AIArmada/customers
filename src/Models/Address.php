@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -59,8 +61,6 @@ class Address extends Model implements Auditable
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
     protected $fillable = [
-        'owner_type',
-        'owner_id',
         'customer_id',
         'type',
         'label',
@@ -147,12 +147,7 @@ class Address extends Model implements Auditable
      */
     public function setAsDefaultBilling(): void
     {
-        // Remove default from other addresses
-        $this->customer->addresses()
-            ->where('id', '!=', $this->id)
-            ->update(['is_default_billing' => false]);
-
-        $this->update(['is_default_billing' => true]);
+        $this->setAsDefault('is_default_billing');
     }
 
     /**
@@ -160,11 +155,34 @@ class Address extends Model implements Auditable
      */
     public function setAsDefaultShipping(): void
     {
-        $this->customer->addresses()
-            ->where('id', '!=', $this->id)
-            ->update(['is_default_shipping' => false]);
+        $this->setAsDefault('is_default_shipping');
+    }
 
-        $this->update(['is_default_shipping' => true]);
+    private function setAsDefault(string $column): void
+    {
+        if (! $this->exists) {
+            throw new LogicException('Only persisted addresses can be made default.');
+        }
+
+        DB::transaction(function () use ($column): void {
+            $customer = Customer::query()
+                ->whereKey($this->customer_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $address = $customer->addresses()
+                ->whereKey($this->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $customer->addresses()
+                ->where('id', '!=', $address->getKey())
+                ->update([$column => false]);
+
+            $address->forceFill([$column => true])->save();
+        });
+
+        $this->setAttribute($column, true);
     }
 
     // =========================================================================
