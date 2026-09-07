@@ -45,9 +45,7 @@ trait HasCustomerProfile
             return $customer;
         }
 
-        $email = is_string($this->email)
-            ? mb_strtolower(mb_trim($this->email))
-            : '';
+        $email = Customer::normalizeEmail($this->email) ?? '';
 
         if ($email === '') {
             throw new InvalidArgumentException('User email is required to create a customer profile.');

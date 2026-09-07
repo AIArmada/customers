@@ -272,14 +272,15 @@ final class CustomerResolver
 
     private function findCustomerByEmail(string $email): ?Customer
     {
-        $normalizedEmail = mb_strtolower(mb_trim($email));
+        $normalizedEmail = Customer::normalizeEmail($email) ?? '';
 
         return Customer::query()
+            ->forOwner(includeGlobal: (bool) config('customers.features.owner.include_global', false))
             ->where(function (Builder $query) use ($normalizedEmail): void {
-                $query->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+                $query->whereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
                     ->orWhereHas('contactMethods', function (Builder $contactMethods) use ($normalizedEmail): void {
                         $contactMethods->where('type', 'email')
-                            ->whereRaw('LOWER(COALESCE(normalized_value, value)) = ?', [$normalizedEmail]);
+                            ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
                     });
             })
             ->first();
@@ -557,7 +558,7 @@ final class CustomerResolver
             return $this->resolveCustomerEmail($sessionCustomer);
         }
 
-        return mb_strtolower($email);
+        return Customer::normalizeEmail($email);
     }
 
     private function resolveCustomerEmail(?Customer $customer): ?string
@@ -569,7 +570,7 @@ final class CustomerResolver
         $email = $this->cleanString($customer->getAttribute('email'));
 
         if ($email !== null) {
-            return mb_strtolower($email);
+            return Customer::normalizeEmail($email);
         }
 
         $emailContactMethod = $customer->contactMethods()
@@ -580,7 +581,7 @@ final class CustomerResolver
 
         $email = $this->cleanString($emailContactMethod?->normalized_value ?? $emailContactMethod?->value);
 
-        return $email === null ? null : mb_strtolower($email);
+        return Customer::normalizeEmail($email);
     }
 
     /**

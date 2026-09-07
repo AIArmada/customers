@@ -35,7 +35,7 @@ final class UpdateCustomerProfile
             $email = $this->cleanString($billingData['email'] ?? $shippingData['email'] ?? null);
 
             if ($email !== null) {
-                $updates['email'] = mb_strtolower($email);
+                $updates['email'] = Customer::normalizeEmail($email);
             }
 
             $phone = $this->cleanString($billingData['phone'] ?? null)
@@ -62,7 +62,7 @@ final class UpdateCustomerProfile
             }
 
             if ($email !== null) {
-                $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+                $customer->addContactMethod(ContactMethodData::email(Customer::normalizeEmail($email) ?? '', 'general'));
             }
 
             if ($phone !== null) {

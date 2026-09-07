@@ -36,13 +36,13 @@ final class CreateCustomer
                 'user_id' => $user?->getKey(),
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'email' => mb_strtolower(mb_trim($email)),
+                'email' => Customer::normalizeEmail($email),
                 'phone' => $phone,
                 'company' => $company,
                 'is_guest' => $isGuest,
             ]);
 
-            $customer->addContactMethod(ContactMethodData::email(mb_strtolower(mb_trim($email)), 'general'));
+            $customer->addContactMethod(ContactMethodData::email(Customer::normalizeEmail($email) ?? '', 'general'));
 
             if ($phone !== null) {
                 $customer->addContactMethod(ContactMethodData::phone($phone, countryCode: 'MY', purpose: 'general'));
