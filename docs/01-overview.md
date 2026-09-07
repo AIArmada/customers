@@ -8,18 +8,33 @@ The Customers package provides the core customer identity and CRM-style data mod
 
 ## Purpose
 
-Use this package when you need the customer-side domain model: profiles, addresses, segments, groups, notes, owner-aware storage, and the policies and events that protect those records.
+Use this package when you need the customer-side domain model: owner-scoped
+commercial profiles, reusable addresses, segments, groups, notes, and the
+policies and events that protect those records.
+
+## Identity topology
+
+`Person` from `aiarmada/persons` is the shared human identity. `Customer` is a
+tenant-owned commercial profile and may link to an existing person through its
+nullable `person_id`; linking is explicit via `LinkCustomerToPerson` and never
+backfills or merges records automatically. `Organization` is the tenant
+aggregate, while `EventOrganizer` is an event-scoped role owned by `events`.
+Customer name, email, phone, checkout, and owner semantics remain customer
+concerns; person titles, credentials, names, and affiliations remain persons
+concerns.
 
 ## What this package owns
 
 - Customer profiles, lifecycle state, and marketing preferences
-- Customer addresses, default billing and shipping rules, and address helpers
+- Legacy customer-address storage and default billing/shipping rules, plus the
+  forward `addressing.HasAddresses` attachment path for new reusable addresses
 - Manual and automatic customer segments with rebuild logic
 - Customer groups and internal/customer-visible notes
 - Customer policies, events, and segmentation services
 - Owner-aware persistence for customer-facing domain records
 - Customer tagging, activity logging, and media hooks on the core customer model
 - Customer resolution for checkout and billing flows when a package needs to map users or guest payloads to a `Customer`
+- Explicit linkage from a customer profile to the shared `persons.Person`
 - The customer-aware payment subject driver registered into Commerce Support's payment-subject resolver, including read-only pre-payment resolution for direct-capable checkout flows and post-payment materialization when checkout asks for persistence
 
 ## What this package does not own
@@ -48,6 +63,7 @@ Use this package when you need the customer-side domain model: profiles, address
 ### Actions
 - `CreateCustomer` — Create a customer from checkout payloads
 - `UpdateCustomerProfile` — Update profile fields from checkout payloads
+- `LinkCustomerToPerson` — Link an owner-safe customer profile to an existing shared person
 - `AssignCustomerToSegment` — Attach a customer to a segment (owner-safe)
 - `RemoveCustomerFromSegment` — Detach a customer from a segment (owner-safe)
 - `RebuildAllSegments` — Rebuild automatic segment memberships per owner
@@ -74,10 +90,9 @@ Use this package when you need the customer-side domain model: profiles, address
 - **Marketing Preferences**: Track opt-in/opt-out status for marketing communications
 
 ### Address Management
-- **Multiple Addresses**: Support unlimited addresses per customer
-- **Address Types**: Billing, Shipping, or Both
-- **Default Addresses**: Automatic management of default billing/shipping addresses
-- **Address Verification**: Track verification status and coordinates
+- **Canonical forward path**: New reusable attachments use `addressing.Address` + `HasAddresses`
+- **Legacy compatibility**: `customer_addresses` remains the source for checkout hydration and default billing/shipping helpers during this pilot
+- **Bridge**: `customers.Address::toAddressingData()` converts a legacy row without copying or deleting data
 
 ### Customer Segmentation
 - **Automatic Segments**: Rules-based customer segmentation

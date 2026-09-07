@@ -84,8 +84,8 @@ if (config('customers.features.owner.enabled')) {
         ->forOwner($owner, includeGlobal: false)
         ->findOrFail($customerId);
     
-    // Now safe to create address
-    $customer->addresses()->create([...]);
+    // Legacy checkout/default-address path
+    $customer->legacyAddresses()->create([...]);
 }
 ```
 
@@ -135,7 +135,7 @@ if ($existing) {
 **Solution**: Eager load relationships:
 
 ```php
-$customers = Customer::with(['segments', 'addresses'])->get();
+$customers = Customer::with(['segments', 'legacyAddresses'])->get();
 ```
 
 **Problem**: Slow segment rebuilds

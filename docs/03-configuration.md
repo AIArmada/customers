@@ -31,6 +31,14 @@ Configure custom table names:
 
 The JSON column type is controlled by the `commerce_json_column_type('customers', 'jsonb')` helper, which reads the `COMMERCE_JSON_COLUMN_TYPE` env variable or the database default.
 
+## Person linkage
+
+The customers package does not configure or own the shared person model. The
+`customers.person_id` column is a nullable, indexed UUID link with no database
+foreign-key constraint. Use `LinkCustomerToPerson` so the customer is resolved
+through the current owner context before the link is saved. The migration is
+guarded and does not backfill existing customers.
+
 ## Features
 
 ### Owner (Multi-Tenancy)

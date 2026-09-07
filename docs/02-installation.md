@@ -9,6 +9,8 @@ title: Installation
 - PHP 8.4+
 - Laravel 11+
 - aiarmada/commerce-support package
+- aiarmada/addressing package (required for the reusable-address pilot)
+- aiarmada/contacting package
 - Spatie Media Library 11+
 - Spatie Tags 4.2+
 
@@ -48,6 +50,12 @@ This creates the following tables:
 - `customer_groups` - Customer buying groups
 - `customer_group_members` - Group membership pivot
 - `customer_notes` - Customer notes
+
+The package also discovers one guarded link migration that adds nullable,
+indexed `customers.person_id` without a foreign-key constraint or backfill.
+It is re-runnable; if local development requires a clean rerun, delete the
+local migration result only in development and rerun the migration. Never
+delete migration history in a deployed environment.
 
 ## Translations
 

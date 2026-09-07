@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Models;
 
+use AIArmada\Addressing\Data\AddressData;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
@@ -170,12 +171,12 @@ class Address extends Model implements Auditable
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $address = $customer->addresses()
+            $address = $customer->legacyAddresses()
                 ->whereKey($this->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $customer->addresses()
+            $customer->legacyAddresses()
                 ->where('id', '!=', $address->getKey())
                 ->update([$column => false]);
 
@@ -183,6 +184,25 @@ class Address extends Model implements Auditable
         });
 
         $this->setAttribute($column, true);
+    }
+
+    public function toAddressingData(): AddressData
+    {
+        $coordinates = $this->coordinates ?? [];
+
+        return AddressData::from([
+            'label' => $this->label,
+            'line1' => $this->line1,
+            'line2' => $this->line2,
+            'city' => $this->city,
+            'state' => $this->state,
+            'postcode' => $this->postcode,
+            'country' => $this->country,
+            'countryCode' => $this->country_code,
+            'latitude' => $coordinates['lat'] ?? null,
+            'longitude' => $coordinates['lng'] ?? null,
+            'metadata' => $this->metadata ?? [],
+        ]);
     }
 
     // =========================================================================

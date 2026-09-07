@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Models;
 
+use AIArmada\Addressing\Traits\HasAddresses;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
@@ -36,6 +38,7 @@ use Spatie\Tags\HasTags;
  * @property string|null $owner_type
  * @property string|null $owner_id
  * @property string|null $user_id
+ * @property string|null $person_id
  * @property string $first_name
  * @property string $last_name
  * @property string $email
@@ -56,14 +59,17 @@ use Spatie\Tags\HasTags;
  * @property CarbonImmutable|null $updated_at
  * @property-read string $full_name
  * @property-read Model|null $user
+ * @property-read Model|null $person
  * @property-read Model|null $owner
- * @property-read Collection<int, Address> $addresses
+ * @property-read Collection<int, Address> $legacyAddresses
+ * @property-read Collection<int, \AIArmada\Addressing\Models\Address> $addresses
  * @property-read Collection<int, Segment> $segments
  * @property-read Collection<int, CustomerNote> $notes
  * @property-read Collection<int, CustomerGroup> $groups
  */
 class Customer extends Model implements Auditable, HasMedia
 {
+    use HasAddresses;
     use HasCommerceAudit;
     use HasContactMethods;
     use HasFactory;
@@ -171,11 +177,32 @@ class Customer extends Model implements Auditable, HasMedia
     }
 
     /**
-     * Get the customer's addresses.
+     * Resolve the shared human identity linked to this owner-scoped profile.
+     * The persons package remains optional until the relation is used.
+     *
+     * @return BelongsTo<Model, $this>
+     */
+    public function person(): BelongsTo
+    {
+        $personClass = config('persons.models.person');
+
+        if (! is_string($personClass) || ! class_exists($personClass)) {
+            throw new LogicException('Configure persons.models.person before resolving a customer person.');
+        }
+
+        /** @var class-string<Model> $personClass */
+        return $this->belongsTo($personClass, 'person_id');
+    }
+
+    /**
+     * Get the customer's legacy package-local addresses.
+     *
+     * New reusable addresses belong to the addressing package and are exposed
+     * through the HasAddresses trait.
      *
      * @return HasMany<Address, $this>
      */
-    public function addresses(): HasMany
+    public function legacyAddresses(): HasMany
     {
         return $this->hasMany(Address::class, 'customer_id');
     }
@@ -235,7 +262,7 @@ class Customer extends Model implements Auditable, HasMedia
      */
     public function getDefaultBillingAddress(): ?Address
     {
-        return $this->addresses()
+        return $this->legacyAddresses()
             ->where('is_default_billing', true)
             ->first();
     }
@@ -245,7 +272,7 @@ class Customer extends Model implements Auditable, HasMedia
      */
     public function getDefaultShippingAddress(): ?Address
     {
-        return $this->addresses()
+        return $this->legacyAddresses()
             ->where('is_default_shipping', true)
             ->first();
     }
@@ -429,7 +456,8 @@ class Customer extends Model implements Auditable, HasMedia
         });
 
         static::deleting(function (Customer $customer): void {
-            $customer->addresses()->delete();
+            $customer->legacyAddresses()->delete();
+            $customer->addresses()->detach();
             $customer->notes()->delete();
             $customer->segments()->detach();
             $customer->groups()->detach();

@@ -15,10 +15,10 @@ keywords:
 
 ## Snapshot
 - Composer: `aiarmada/customers`
-- Role: Customer identity/CRM: profiles, addresses, segments, groups, notes.
+- Role: Owner-scoped commercial customer profile linked optionally to the shared persons identity, plus addresses, segments, groups, and notes.
 - Triggers: customer, crm, segment, profile
 - Search first: `src/Models, src/Actions, src/Services, config, docs`
-- Related: `filament-customers`, `pricing`, `checkout`
+- Related: `filament-customers`, `persons`, `addressing`, `pricing`, `checkout`
 - Paired: `filament-customers` (Filament admin adapter)
 
 ## Read next
@@ -31,17 +31,19 @@ keywords:
 
 ## Guardrails
 - Owns models, actions, services, events, calculations, and persistence rules.
+- `Customer` is the owner-scoped commercial profile. Its nullable `person_id` is a loose, indexed link to the shared `persons.Person`; use `LinkCustomerToPerson` for owner-safe writes and do not backfill automatically.
+- New reusable customer address attachments use `addressing.HasAddresses`; `customers.Address` and its `customer_addresses` table remain frozen legacy storage for checkout/default-address behavior until a later migration phase.
 - If admin UI changes too, audit `filament-customers`.
 - Update `docs/*.md` in the same pass when public behavior or config changes.
 
 ## Decide fast
-- Use when: Customer records or segmentation.
-- Skip when: Person identity (titles/credentials) — see persons.
+- Use when: Customer records, commercial identity linkage, reusable saved addresses, or segmentation.
+- Skip when: Shared person identity (titles/credentials) — see persons; tenant identity — see organizations.
 - Owner/security: Owner-scoped (all models; customers.features.owner, default off).
 
 ## Key surfaces
 - Models: `Address`, `Customer`, `CustomerGroup`, `CustomerNote`, `Segment`
-- Actions/Services: `Actions/AssignCustomerToSegment`, `Actions/CreateCustomer`, `Actions/RebuildAllSegments`, `Actions/RemoveCustomerFromSegment`, `Actions/UpdateCustomerProfile`, `Services/CustomerResolver`, `Services/SegmentationService`
+- Actions/Services: `Actions/AssignCustomerToSegment`, `Actions/CreateCustomer`, `Actions/LinkCustomerToPerson`, `Actions/RebuildAllSegments`, `Actions/RemoveCustomerFromSegment`, `Actions/UpdateCustomerProfile`, `Services/CustomerResolver`, `Services/SegmentationService`
 - Config `customers.php`: `database`, `table_prefix`, `json_column_type`, `tables`, `customers`, `addresses`, `segments`, `segment_customer`, `groups`, `group_members`
 
 ## Docs map

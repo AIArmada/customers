@@ -316,7 +316,7 @@ final class CustomerResolver
             return;
         }
 
-        $customer->addresses()->create($payload);
+        $customer->legacyAddresses()->create($payload);
     }
 
     /**
@@ -342,8 +342,8 @@ final class CustomerResolver
         $line2 = $this->resolveAddressField($data, ['line2']);
         $state = $this->resolveAddressField($data, ['state', 'province', 'region']);
 
-        $defaultBilling = $setDefaultBilling && ! $customer->addresses()->where('is_default_billing', true)->exists();
-        $defaultShipping = $setDefaultShipping && ! $customer->addresses()->where('is_default_shipping', true)->exists();
+        $defaultBilling = $setDefaultBilling && ! $customer->legacyAddresses()->where('is_default_billing', true)->exists();
+        $defaultShipping = $setDefaultShipping && ! $customer->legacyAddresses()->where('is_default_shipping', true)->exists();
 
         return [
             'type' => $type->value,
@@ -367,7 +367,7 @@ final class CustomerResolver
      */
     private function hasMatchingAddress(Customer $customer, array $payload): bool
     {
-        $query = $customer->addresses()
+        $query = $customer->legacyAddresses()
             ->where('type', $payload['type'])
             ->where('line1', $payload['line1'])
             ->where('city', $payload['city'])
@@ -391,12 +391,12 @@ final class CustomerResolver
 
     private function moveAddresses(Customer $source, Customer $target): void
     {
-        $targetDefaultBilling = $target->addresses()->where('is_default_billing', true)->exists();
-        $targetDefaultShipping = $target->addresses()->where('is_default_shipping', true)->exists();
+        $targetDefaultBilling = $target->legacyAddresses()->where('is_default_billing', true)->exists();
+        $targetDefaultShipping = $target->legacyAddresses()->where('is_default_shipping', true)->exists();
 
-        $source->loadMissing('addresses');
+        $source->loadMissing('legacyAddresses');
 
-        foreach ($source->addresses as $address) {
+        foreach ($source->legacyAddresses as $address) {
             if ($this->isDuplicateAddress($target, $address)) {
                 $address->delete();
 
@@ -420,7 +420,7 @@ final class CustomerResolver
     {
         $countryCode = $this->resolveAddressCountryCode($address);
 
-        $query = $customer->addresses()
+        $query = $customer->legacyAddresses()
             ->where('type', $address->type->value)
             ->where('line1', $address->line1)
             ->where('city', $address->city)

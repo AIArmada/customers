@@ -14,6 +14,7 @@ use AIArmada\Customers\Actions\UpdateCustomerProfile;
 use AIArmada\Customers\Actions\AssignCustomerToSegment;
 use AIArmada\Customers\Actions\RemoveCustomerFromSegment;
 use AIArmada\Customers\Actions\RebuildAllSegments;
+use AIArmada\Customers\Actions\LinkCustomerToPerson;
 
 // Create a new customer
 $customer = CreateCustomer::run(
@@ -43,6 +44,9 @@ RebuildAllSegments::run()->forOwner($owner);
 
 // Rebuild automatic segments across all owners
 RebuildAllSegments::run()->forAllOwners();
+
+// Link an existing owner-scoped customer profile to a shared person.
+$customer = app(LinkCustomerToPerson::class)->execute($customer, $person);
 ```
 
 ## Creating Customers
@@ -69,6 +73,8 @@ echo "Created: {$customer->full_name}"; // "John Doe"
 ### Link to User
 
 ```php
+use AIArmada\Customers\Models\Customer;
+
 $customer = Customer::create([
     'user_id' => $user->id,
     'first_name' => $user->name,
@@ -83,24 +89,26 @@ Or use the trait on your User model:
 $customer = $user->getOrCreateCustomerProfile();
 ```
 
-### Customer with Address
+### Customer with a reusable address (forward path)
 
 ```php
+use AIArmada\Addressing\Models\Address;
+use AIArmada\Customers\Models\Customer;
+
 $customer = Customer::create([
     'first_name' => 'Jane',
     'last_name' => 'Smith',
     'email' => 'jane@example.com',
 ]);
 
-$customer->addresses()->create([
-    'type' => AddressType::Both,
+$address = Address::create([
     'line1' => '123 Main Street',
     'city' => 'Kuala Lumpur',
     'postcode' => '50000',
-    'country' => 'MY',
-    'is_default_billing' => true,
-    'is_default_shipping' => true,
+    'country_code' => 'MY',
 ]);
+
+$customer->attachAddress($address, type: 'shipping', isPrimary: true);
 ```
 
 ## Checkout and Payment Subject Resolution
@@ -205,14 +213,18 @@ $activeCustomers = Customer::active()->get();
 $marketingList = Customer::acceptsMarketing()->get();
 ```
 
-## Address Management
+## Legacy customer-address management
+
+The pilot keeps `customer_addresses` for checkout and default-address
+behavior. New reusable attachments use the `addressing` path above; existing
+legacy rows are accessed explicitly through `legacyAddresses()`.
 
 ### Add Address
 
 ```php
 use AIArmada\Customers\Enums\AddressType;
 
-$address = $customer->addresses()->create([
+$address = $customer->legacyAddresses()->create([
     'type' => AddressType::Shipping,
     'label' => 'Home',
     'recipient_name' => 'John Doe',
