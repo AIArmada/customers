@@ -32,6 +32,7 @@ keywords:
 ## Guardrails
 - Owns models, actions, services, events, calculations, and persistence rules.
 - `Customer` is the owner-scoped commercial profile. Its nullable `person_id` is a loose, indexed link to the shared `persons.Person`; use `LinkCustomerToPerson` for owner-safe writes and do not backfill automatically.
+- `customers` hard-requires `addressing` because `Customer` unconditionally uses `HasAddresses`; future unconditional pilots, including orders, must make the same dependency decision explicitly.
 - New reusable customer address attachments use `addressing.HasAddresses`; `customers.Address` and its `customer_addresses` table remain frozen legacy storage for checkout/default-address behavior until a later migration phase.
 - If admin UI changes too, audit `filament-customers`.
 - Update `docs/*.md` in the same pass when public behavior or config changes.

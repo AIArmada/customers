@@ -23,6 +23,12 @@ Customer name, email, phone, checkout, and owner semantics remain customer
 concerns; person titles, credentials, names, and affiliations remain persons
 concerns.
 
+The customers package hard-requires `aiarmada/addressing` because `Customer`
+uses `HasAddresses` unconditionally. This is an intentional package-policy
+decision: integrations that unconditionally adopt the trait must declare the
+dependency rather than provide a conditional or compatibility path. The orders
+pilot must ratify the same decision before adopting `HasAddresses`.
+
 ## What this package owns
 
 - Customer profiles, lifecycle state, and marketing preferences
