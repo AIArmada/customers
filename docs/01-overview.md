@@ -19,9 +19,9 @@ tenant-owned commercial profile and may link to an existing person through its
 nullable `person_id`; linking is explicit via `LinkCustomerToPerson` and never
 backfills or merges records automatically. `Organization` is the tenant
 aggregate, while `EventOrganizer` is an event-scoped role owned by `events`.
-Customer name, email, phone, checkout, and owner semantics remain customer
-concerns; person titles, credentials, names, and affiliations remain persons
-concerns.
+Customer name, checkout, and owner semantics remain customer concerns. Email
+and phone values belong to the Contacting relations on the customer; person
+titles, credentials, names, and affiliations remain persons concerns.
 
 The customers package hard-requires `aiarmada/addressing` because `Customer`
 uses `HasAddresses` unconditionally. This is an intentional package-policy
@@ -32,6 +32,7 @@ pilot must ratify the same decision before adopting `HasAddresses`.
 ## What this package owns
 
 - Customer profiles, lifecycle state, and marketing preferences
+- Customer contact ownership through Contacting's canonical contact-method rows
 - Legacy customer-address storage and default billing/shipping rules, plus the
   forward `addressing.HasAddresses` attachment path for new reusable addresses
 - Manual and automatic customer segments with rebuild logic
@@ -42,6 +43,11 @@ pilot must ratify the same decision before adopting `HasAddresses`.
 - Customer resolution for checkout and billing flows when a package needs to map users or guest payloads to a `Customer`
 - Explicit linkage from a customer profile to the shared `persons.Person`
 - The customer-aware payment subject driver registered into Commerce Support's payment-subject resolver, including read-only pre-payment resolution for direct-capable checkout flows and post-payment materialization when checkout asks for persistence
+
+The payment-subject driver remains in this package for the current release. Its
+relocation to the completed `cashier` package is deferred to the cashier track;
+consumers should treat the driver as an integration dependency during that
+cutover.
 
 ## What this package does not own
 
@@ -70,13 +76,12 @@ pilot must ratify the same decision before adopting `HasAddresses`.
 - `CreateCustomer` — Create a customer from checkout payloads
 - `UpdateCustomerProfile` — Update profile fields from checkout payloads
 - `LinkCustomerToPerson` — Link an owner-safe customer profile to an existing shared person
+- `MergeCustomers` — Transactionally merge one owner-safe customer into another
 - `AssignCustomerToSegment` — Attach a customer to a segment (owner-safe)
 - `RemoveCustomerFromSegment` — Detach a customer from a segment (owner-safe)
 - `RebuildAllSegments` — Rebuild automatic segment memberships per owner
 
 ### Concerns
-- `IsCustomerOwned` — Trait for models with a `customer_id` FK (validates owner tuple sync)
-- `IsCustomerRelated` — Trait for models related to customers (auto-assigns owner on create)
 - `HasCustomerProfile` — Trait implementing the `HasCustomerProfile` contract
 
 ### Contracts
@@ -151,14 +156,16 @@ Works seamlessly with:
 ## Architecture
 
 The package follows SOLID principles:
-- **Actions**: Reusable action classes for customer operations (CreateCustomer, UpdateCustomerProfile, AssignCustomerToSegment, RemoveCustomerFromSegment, RebuildAllSegments)
+- **Actions**: Reusable action classes for customer operations (CreateCustomer, UpdateCustomerProfile, LinkCustomerToPerson, MergeCustomers, AssignCustomerToSegment, RemoveCustomerFromSegment, RebuildAllSegments)
 - **Models**: Eloquent models with proper relationships
 - **Enums**: Type-safe status and type definitions
 - **Events**: Dispatchable events for all major actions
 - **Policies**: Authorization via Laravel policies
-- **Concerns**: Reusable traits (IsCustomerOwned, IsCustomerRelated, HasCustomerProfile)
+- **Concerns**: Reusable customer-profile trait (`HasCustomerProfile`)
 - **Contracts**: Interfaces for extensibility (HasCustomerProfile)
-- **Services**: Business logic encapsulation (CustomerResolver, SegmentationService)
+- **Support**: Shared profile normalization (`CustomerProfileNormalizer`)
+- **Services**: Checkout resolution and segmentation (`CustomerResolver`, `SegmentationService`)
+- **Merge**: Canonical transactional merge (`MergeCustomers`)
 - **Commands**: Artisan commands for maintenance tasks (RebuildSegmentsCommand)
 
 ## Read next

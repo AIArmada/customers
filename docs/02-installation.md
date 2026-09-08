@@ -140,13 +140,15 @@ Verify installation by creating a test customer:
 
 ```php
 use AIArmada\Customers\Models\Customer;
+use AIArmada\Contacting\Data\ContactMethodData;
 
 $customer = Customer::create([
     'first_name' => 'John',
     'last_name' => 'Doe',
-    'email' => 'john@example.com',
-    'phone' => '+60123456789',
 ]);
+
+$customer->addContactMethod(ContactMethodData::email('john@example.com'));
+$customer->addContactMethod(ContactMethodData::phone('+60123456789', 'MY'));
 
 echo "Customer created: {$customer->full_name}";
 ```

@@ -23,8 +23,6 @@ class CustomerFactory extends Factory
         return [
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
-            'email' => $this->faker->unique()->safeEmail(),
-            'phone' => $this->faker->optional()->phoneNumber(),
             'company' => $this->faker->optional()->company(),
             'status' => CustomerStatus::Active,
             'accepts_marketing' => $this->faker->boolean(70),

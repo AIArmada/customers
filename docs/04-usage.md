@@ -15,6 +15,7 @@ use AIArmada\Customers\Actions\AssignCustomerToSegment;
 use AIArmada\Customers\Actions\RemoveCustomerFromSegment;
 use AIArmada\Customers\Actions\RebuildAllSegments;
 use AIArmada\Customers\Actions\LinkCustomerToPerson;
+use AIArmada\Customers\Actions\MergeCustomers;
 
 // Create a new customer
 $customer = CreateCustomer::run(
@@ -46,7 +47,10 @@ RebuildAllSegments::run()->forOwner($owner);
 RebuildAllSegments::run()->forAllOwners();
 
 // Link an existing owner-scoped customer profile to a shared person.
-$customer = app(LinkCustomerToPerson::class)->execute($customer, $person);
+$customer = app(LinkCustomerToPerson::class)->executeByKey($customer, $personId);
+
+// Merge the source customer into the target customer.
+$customer = app(MergeCustomers::class)->execute($target, $source);
 ```
 
 ## Creating Customers
@@ -54,18 +58,20 @@ $customer = app(LinkCustomerToPerson::class)->execute($customer, $person);
 ### Basic Customer Creation
 
 ```php
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Enums\CustomerStatus;
 
 $customer = Customer::create([
     'first_name' => 'John',
     'last_name' => 'Doe',
-    'email' => 'john@example.com',
-    'phone' => '+60123456789',
     'company' => 'Acme Corp',
     'status' => CustomerStatus::Active,
     'accepts_marketing' => true,
 ]);
+
+$customer->addContactMethod(ContactMethodData::email('john@example.com'));
+$customer->addContactMethod(ContactMethodData::phone('+60123456789', 'MY'));
 
 echo "Created: {$customer->full_name}"; // "John Doe"
 ```
@@ -73,14 +79,16 @@ echo "Created: {$customer->full_name}"; // "John Doe"
 ### Link to User
 
 ```php
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 
 $customer = Customer::create([
     'user_id' => $user->id,
     'first_name' => $user->name,
     'last_name' => '',
-    'email' => $user->email,
 ]);
+
+$customer->addContactMethod(ContactMethodData::email($user->email));
 ```
 
 Or use the trait on your User model:
@@ -93,13 +101,15 @@ $customer = $user->getOrCreateCustomerProfile();
 
 ```php
 use AIArmada\Addressing\Models\Address;
+use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 
 $customer = Customer::create([
     'first_name' => 'Jane',
     'last_name' => 'Smith',
-    'email' => 'jane@example.com',
 ]);
+
+$customer->addContactMethod(ContactMethodData::email('jane@example.com'));
 
 $address = Address::create([
     'line1' => '123 Main Street',
@@ -141,6 +151,10 @@ For direct-capable checkout flows, the package also exposes a read-only lookup p
 
 If owner-scoping is enabled, pass the checkout session owner into the resolver so both customer creation and guest-customer reuse happen within the correct tenant boundary instead of relying purely on ambient context.
 
+`resolve()` wraps profile updates, contact rows, address hydration, and any
+guest merge in one transaction. `resolveExisting()` remains a read-oriented
+lookup path.
+
 ### Payment Subject Driver Integration
 
 `CustomersServiceProvider` automatically registers `CustomersPaymentSubjectDriver` with Commerce Support's `PaymentSubjectResolverInterface` after the container boots.
@@ -176,6 +190,21 @@ $paymentCustomer = $resolved?->paymentCustomer;
 ```
 
 The driver prefers customer defaults when the payload is incomplete. For example, it falls back to default billing and shipping addresses when the checkout payload does not supply `line1`, `city`, `postcode`, or `country`.
+
+### Customer/person linkage
+
+`CreateCustomer::execute()` and `UpdateCustomerProfile::execute()` accept an
+optional trailing `$personId`. When supplied, they call
+`LinkCustomerToPerson::executeByKey()` and revalidate the persisted configured
+person. Passing `null` leaves an existing link unchanged; there is no unlink
+operation. The lookup is owner-safe for the customer and never creates or
+backfills a person.
+
+### Segment slug scope
+
+Segment slugs are checked by the persisted `(owner_type, owner_id, slug)` tuple
+in application code. The historical `owner_scope` unique index remains as a
+legacy guard and is not the source of tenant identity.
 
 ## Managing Customer Status
 
@@ -234,7 +263,6 @@ $address = $customer->legacyAddresses()->create([
     'state' => 'Selangor',
     'postcode' => '46000',
     'country' => 'MY',
-    'phone' => '+60123456789',
 ]);
 ```
 
@@ -271,7 +299,6 @@ John Doe
 Apt 3B
 Petaling Jaya Selangor 46000
 MY
-+60123456789
 */
 
 // For shipping labels

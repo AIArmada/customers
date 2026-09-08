@@ -39,6 +39,15 @@ foreign-key constraint. Use `LinkCustomerToPerson` so the customer is resolved
 through the current owner context before the link is saved. The migration is
 guarded and does not backfill existing customers.
 
+## Contact methods
+
+Customer email and phone values are stored only in Contacting's
+`contact_methods` table. The customers tables have no native `email` or
+`phone` columns. Use `Customer::addContactMethod()`,
+`CreateContactMethodAction`, or the Contacting Filament relation manager.
+Existing native customer contact columns are removed by the cutover migration
+without a backfill.
+
 ## Features
 
 ### Owner (Multi-Tenancy)
@@ -48,7 +57,7 @@ The owner config lives under `customers.features.owner`.
 ```php
 'features' => [
     'owner' => [
-        'enabled' => env('CUSTOMERS_OWNER_ENABLED', false),
+        'enabled' => env('CUSTOMERS_OWNER_ENABLED', true),
         'include_global' => env('CUSTOMERS_OWNER_INCLUDE_GLOBAL', false),
         'auto_assign_on_create' => env('CUSTOMERS_OWNER_AUTO_ASSIGN', true),
     ],
@@ -65,7 +74,7 @@ The owner config lives under `customers.features.owner`.
 ```php
 'features' => [
     'segments' => [
-        'auto_assign' => true, // Automatically assign customers to matching segments
+        'auto_assign' => env('CUSTOMERS_SEGMENTS_AUTO_ASSIGN', true),
     ],
 ],
 ```
@@ -95,6 +104,7 @@ You can override configuration via environment variables:
 CUSTOMERS_OWNER_ENABLED=true
 CUSTOMERS_OWNER_INCLUDE_GLOBAL=false
 CUSTOMERS_OWNER_AUTO_ASSIGN=true
+CUSTOMERS_SEGMENTS_AUTO_ASSIGN=true
 ```
 
 ## Usage Examples
@@ -138,8 +148,9 @@ $table->index(['customer_id', 'type']);
 $table->index(['customer_id', 'is_default_billing']);
 $table->index(['customer_id', 'is_default_shipping']);
 
-// Segments table
-$table->unique(['owner_type', 'owner_id', 'slug']);
+// Segments table: owner_scope is retained as a legacy database guard.
+// Segment model code enforces the authoritative owner tuple plus slug.
+$table->unique(['owner_scope', 'slug']);
 $table->index(['is_active', 'priority']);
 $table->index('type');
 ```

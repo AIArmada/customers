@@ -23,8 +23,6 @@ return new class extends Migration
             // Basic info
             $table->string('first_name');
             $table->string('last_name');
-            $table->string('email')->index();
-            $table->string('phone')->nullable()->index();
             $table->string('company')->nullable();
 
             // Status

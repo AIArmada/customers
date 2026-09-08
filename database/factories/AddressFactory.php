@@ -27,7 +27,6 @@ class AddressFactory extends Factory
             'label' => $this->faker->randomElement(['Home', 'Office', 'Other']),
             'recipient_name' => $this->faker->name(),
             'company' => $this->faker->optional()->company(),
-            'phone' => $this->faker->phoneNumber(),
             'line1' => $this->faker->streetAddress(),
             'line2' => $this->faker->optional()->secondaryAddress(),
             'city' => $this->faker->city(),

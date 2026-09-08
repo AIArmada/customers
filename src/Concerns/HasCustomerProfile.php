@@ -7,6 +7,7 @@ namespace AIArmada\Customers\Concerns;
 use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
+use AIArmada\Customers\Support\CustomerProfileNormalizer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
@@ -45,15 +46,15 @@ trait HasCustomerProfile
             return $customer;
         }
 
-        $email = Customer::normalizeEmail($this->email) ?? '';
+        $normalizer = app(CustomerProfileNormalizer::class);
+        $email = $normalizer->normalizeEmail($this->email) ?? '';
 
         if ($email === '') {
             throw new InvalidArgumentException('User email is required to create a customer profile.');
         }
 
-        [$firstName, $lastName] = $this->splitName($this->name);
-        $phone = is_string($this->phone) ? mb_trim($this->phone) : null;
-        $phone = $phone === '' ? null : $phone;
+        [$firstName, $lastName] = $normalizer->splitName($this->name, 'User');
+        $phone = $normalizer->normalizePhone($this->phone);
         $userId = $this->getKey();
 
         return DB::transaction(function () use ($email, $firstName, $lastName, $phone, $userId): Customer {
@@ -61,11 +62,14 @@ trait HasCustomerProfile
                 'user_id' => $userId,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'email' => $email,
-                'phone' => $phone,
             ]);
 
-            $customer->addContactMethod(ContactMethodData::email($email, 'general'));
+            $customer->addContactMethod(new ContactMethodData(
+                type: 'email',
+                purpose: 'general',
+                value: $email,
+                isPrimary: true,
+            ));
 
             if ($phone !== null) {
                 $customer->addContactMethod(ContactMethodData::phone(
@@ -77,25 +81,6 @@ trait HasCustomerProfile
 
             return $customer;
         });
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function splitName(?string $name): array
-    {
-        $name = mb_trim((string) $name);
-
-        if ($name === '') {
-            return ['User', ''];
-        }
-
-        $parts = preg_split('/\s+/', $name) ?: [];
-
-        $firstName = $parts[0] ?? $name;
-        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '';
-
-        return [$firstName, $lastName];
     }
 
     /**

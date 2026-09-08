@@ -23,13 +23,13 @@ return [
     // Features
     'features' => [
         'owner' => [
-            'enabled' => env('CUSTOMERS_OWNER_ENABLED', false),
+            'enabled' => env('CUSTOMERS_OWNER_ENABLED', true),
             'include_global' => env('CUSTOMERS_OWNER_INCLUDE_GLOBAL', false),
             'auto_assign_on_create' => env('CUSTOMERS_OWNER_AUTO_ASSIGN', true),
         ],
 
         'segments' => [
-            'auto_assign' => true,
+            'auto_assign' => env('CUSTOMERS_SEGMENTS_AUTO_ASSIGN', true),
         ],
     ],
 

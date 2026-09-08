@@ -10,7 +10,6 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeKey;
-use AIArmada\Customers\Concerns\IsCustomerRelated;
 use AIArmada\Customers\Enums\SegmentType;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -50,7 +50,6 @@ class Segment extends Model implements Auditable
     use HasOwnerScopeConfig;
     use HasOwnerScopeKey;
     use HasUuids;
-    use IsCustomerRelated;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -279,6 +278,8 @@ class Segment extends Model implements Auditable
     protected static function booted(): void
     {
         static::saving(function (Segment $segment): void {
+            $segment->assertSlugIsUniqueWithinOwnerTuple();
+
             if ($segment->isDirty('is_active') && $segment->is_active === false && $segment->getOriginal('is_active') === true) {
                 $segment->deactivated_at = CarbonImmutable::now();
             }
@@ -292,6 +293,42 @@ class Segment extends Model implements Auditable
     protected function getActivityLogName(): string
     {
         return 'customers';
+    }
+
+    private function assertSlugIsUniqueWithinOwnerTuple(): void
+    {
+        $slug = $this->getAttribute('slug');
+
+        if (! is_string($slug) || mb_trim($slug) === '') {
+            return;
+        }
+
+        $ownerType = $this->getAttribute('owner_type');
+        $ownerId = $this->getAttribute('owner_id');
+
+        if (($ownerType === null) !== ($ownerId === null)) {
+            throw new InvalidArgumentException('Owner type and owner id must both be present or both be null.');
+        }
+
+        $query = static::query()
+            ->withoutOwnerScope()
+            ->where('slug', $slug);
+
+        if ($ownerType === null) {
+            $query->whereNull('owner_type')->whereNull('owner_id');
+        } else {
+            $query->where('owner_type', $ownerType)->where('owner_id', $ownerId);
+        }
+
+        if ($this->exists) {
+            $query->whereKeyNot($this->getKey());
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'slug' => 'The segment slug has already been taken within this owner scope.',
+            ]);
+        }
     }
 
     /**

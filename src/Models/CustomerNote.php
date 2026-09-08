@@ -7,7 +7,6 @@ namespace AIArmada\Customers\Models;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
-use AIArmada\Customers\Concerns\IsCustomerOwned;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,7 +34,6 @@ class CustomerNote extends Model
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
-    use IsCustomerOwned;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';

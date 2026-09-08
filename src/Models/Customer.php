@@ -7,11 +7,13 @@ namespace AIArmada\Customers\Models;
 use AIArmada\Addressing\Traits\HasAddresses;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Contacting\Actions\CreateContactMethodAction;
 use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\Contacting\Concerns\HasSocialProfiles;
+use AIArmada\Contacting\Data\ContactMethodData;
+use AIArmada\Contacting\Models\ContactMethod;
 use AIArmada\Customers\Enums\CustomerStatus;
 use AIArmada\Customers\Events\CustomerCreated;
 use AIArmada\Customers\Events\CustomerUpdated;
@@ -26,7 +28,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\MediaLibrary\HasMedia;
@@ -41,8 +42,6 @@ use Spatie\Tags\HasTags;
  * @property string|null $person_id
  * @property string $first_name
  * @property string $last_name
- * @property string $email
- * @property string|null $phone
  * @property string|null $company
  * @property bool $is_guest
  * @property CustomerStatus $status
@@ -87,8 +86,6 @@ class Customer extends Model implements Auditable, HasMedia
         'user_id',
         'first_name',
         'last_name',
-        'email',
-        'phone',
         'company',
         'status',
         'is_guest',
@@ -156,6 +153,51 @@ class Customer extends Model implements Auditable, HasMedia
         return mb_strtolower(mb_trim((string) $email));
     }
 
+    public function addContactMethod(ContactMethodData | array $data): ContactMethod
+    {
+        if (is_array($data)) {
+            $data = ContactMethodData::from($data);
+        }
+
+        if ($data->type === 'email') {
+            $this->assertContactEmailIsUnique($data->value);
+        }
+
+        return app(CreateContactMethodAction::class)->execute($this, $data);
+    }
+
+    private function assertContactEmailIsUnique(string $email): void
+    {
+        $normalizedEmail = static::normalizeEmail($email);
+
+        if ($normalizedEmail === null) {
+            return;
+        }
+
+        $query = ContactMethod::query()
+            ->withoutOwnerScope()
+            ->where('contactable_type', $this->getMorphClass())
+            ->where('type', 'email')
+            ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
+
+        if ($this->owner_type === null && $this->owner_id === null) {
+            $query->whereNull('owner_type')->whereNull('owner_id');
+        } else {
+            $query->where('owner_type', $this->owner_type)
+                ->where('owner_id', $this->owner_id);
+        }
+
+        if ($this->exists) {
+            $query->where('contactable_id', '!=', $this->getKey());
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'email' => 'The email has already been taken within the current owner scope.',
+            ]);
+        }
+    }
+
     // =========================================================================
     // RELATIONSHIPS
     // =========================================================================
@@ -186,7 +228,11 @@ class Customer extends Model implements Auditable, HasMedia
     {
         $personClass = config('persons.models.person');
 
-        if (! is_string($personClass) || ! class_exists($personClass)) {
+        if (
+            ! is_string($personClass)
+            || ! class_exists($personClass)
+            || ! is_a($personClass, Model::class, true)
+        ) {
             throw new LogicException('Configure persons.models.person before resolving a customer person.');
         }
 
@@ -425,36 +471,6 @@ class Customer extends Model implements Auditable, HasMedia
 
     protected static function booted(): void
     {
-        static::creating(function (Customer $customer): void {
-            $customer->assertEmailIsUniqueWithinOwnerScope();
-        });
-
-        static::updating(function (Customer $customer): void {
-            if ($customer->isDirty('email')) {
-                $customer->assertEmailIsUniqueWithinOwnerScope();
-            }
-        });
-
-        static::creating(function (Customer $customer): void {
-            if (! (bool) config('customers.features.owner.enabled', false)) {
-                return;
-            }
-
-            if ($customer->owner_id !== null) {
-                return;
-            }
-
-            if (! (bool) config('customers.features.owner.auto_assign_on_create', true)) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            if ($owner !== null) {
-                $customer->assignOwner($owner);
-            }
-        });
-
         static::deleting(function (Customer $customer): void {
             $customer->legacyAddresses()->delete();
             $customer->addresses()->detach();
@@ -462,44 +478,6 @@ class Customer extends Model implements Auditable, HasMedia
             $customer->segments()->detach();
             $customer->groups()->detach();
         });
-    }
-
-    private function assertEmailIsUniqueWithinOwnerScope(): void
-    {
-        $normalizedEmail = static::normalizeEmail($this->getAttribute('email'));
-
-        if ($normalizedEmail === null) {
-            return;
-        }
-
-        $ownerType = $this->getAttribute('owner_type');
-        $ownerId = $this->getAttribute('owner_id');
-
-        if (($ownerType === null) !== ($ownerId === null)) {
-            throw new InvalidArgumentException('Owner type and owner id must both be present or both be null.');
-        }
-
-        $query = static::query()
-            ->withoutOwnerScope()
-            ->whereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail]);
-
-        if ($ownerType === null && $ownerId === null) {
-            $query->whereNull('owner_type')->whereNull('owner_id');
-        } else {
-            $query->where('owner_type', $ownerType)->where('owner_id', $ownerId);
-        }
-
-        if ($this->exists) {
-            $query->where($this->getKeyName(), '!=', $this->getKey());
-        }
-
-        if (! $query->exists()) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            'email' => 'The email has already been taken within the current owner scope.',
-        ]);
     }
 
     // =========================================================================
@@ -516,8 +494,6 @@ class Customer extends Model implements Auditable, HasMedia
         return [
             'first_name',
             'last_name',
-            'email',
-            'phone',
             'status',
             'accepts_marketing',
         ];

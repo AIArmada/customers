@@ -8,7 +8,6 @@ use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
-use AIArmada\Customers\Concerns\IsCustomerRelated;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -45,7 +44,6 @@ class CustomerGroup extends Model implements Auditable
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
-    use IsCustomerRelated;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';

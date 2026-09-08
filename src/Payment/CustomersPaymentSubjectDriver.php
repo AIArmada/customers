@@ -150,36 +150,12 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
 
     private function resolveCustomerEmail(Customer $customer): ?string
     {
-        $email = $this->cleanString($customer->getAttribute('email'));
-
-        if ($email !== null) {
-            return mb_strtolower($email);
-        }
-
-        $emailContactMethod = $customer->contactMethods()
-            ->where('type', 'email')
-            ->orderByDesc('is_primary')
-            ->orderBy('sort_order')
-            ->first();
-
-        return $this->cleanString($emailContactMethod?->normalized_value ?? $emailContactMethod?->value);
+        return $customer->resolveEmail();
     }
 
     private function resolveCustomerPhone(Customer $customer): ?string
     {
-        $phone = $this->cleanString($customer->getAttribute('phone'));
-
-        if ($phone !== null) {
-            return $phone;
-        }
-
-        $phoneContactMethod = $customer->contactMethods()
-            ->where('type', 'phone')
-            ->orderByDesc('is_primary')
-            ->orderBy('sort_order')
-            ->first();
-
-        return $this->cleanString($phoneContactMethod?->normalized_value ?? $phoneContactMethod?->value);
+        return $customer->resolvePhone();
     }
 
     private function cleanString(mixed $value): ?string

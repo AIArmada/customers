@@ -10,7 +10,6 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Contacting\Concerns\HasContactMethods;
-use AIArmada\Customers\Concerns\IsCustomerOwned;
 use AIArmada\Customers\Enums\AddressType;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -30,7 +30,6 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $label
  * @property string|null $recipient_name
  * @property string|null $company
- * @property string|null $phone
  * @property string $line1
  * @property string|null $line2
  * @property string $city
@@ -56,7 +55,6 @@ class Address extends Model implements Auditable
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
-    use IsCustomerOwned;
     use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
@@ -67,7 +65,6 @@ class Address extends Model implements Auditable
         'label',
         'recipient_name',
         'company',
-        'phone',
         'line1',
         'line2',
         'city',
@@ -259,11 +256,7 @@ class Address extends Model implements Auditable
 
         $lines[] = $this->country_code;
 
-        $phone = $this->phone;
-
-        if ($this->relationLoaded('contactMethods')) {
-            $phone = $this->contactMethods->firstWhere('type', 'phone')?->value ?? $phone;
-        }
+        $phone = $this->resolvePhone();
 
         if ($phone !== null && $phone !== '') {
             $lines[] = $phone;
@@ -286,9 +279,7 @@ class Address extends Model implements Auditable
             'state' => $this->state,
             'postcode' => $this->postcode,
             'country_code' => $this->country_code,
-            'phone' => $this->relationLoaded('contactMethods')
-                ? ($this->contactMethods->firstWhere('type', 'phone')?->value ?? $this->phone)
-                : $this->phone,
+            'phone' => $this->resolvePhone(),
         ];
     }
 
@@ -341,5 +332,18 @@ class Address extends Model implements Auditable
         return $query->whereNotNull('verified_at');
     }
 
-    protected static function booted(): void {}
+    protected static function booted(): void
+    {
+        static::saving(function (Address $address): void {
+            $customerId = $address->getAttribute('customer_id');
+
+            if (! is_string($customerId) || mb_trim($customerId) === '') {
+                throw new InvalidArgumentException('A customer is required for every customer address.');
+            }
+
+            if (! Customer::query()->whereKey($customerId)->exists()) {
+                throw new InvalidArgumentException('The customer address owner is not accessible to the current owner.');
+            }
+        });
+    }
 }
