@@ -241,7 +241,7 @@ return new class extends Migration
             : sprintf('%s IS NULL AND %s IS NULL', $ownerType, $ownerId);
 
         return sprintf(
-            "CASE WHEN %s AND %s = %s AND %s = %s THEN CAST(%s AS CHAR(320)) ELSE NULL END",
+            'CASE WHEN %s AND %s = %s AND %s = %s THEN CAST(%s AS CHAR(320)) ELSE NULL END',
             $ownerCondition,
             $contactableType,
             $customerType,

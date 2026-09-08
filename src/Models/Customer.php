@@ -160,10 +160,45 @@ class Customer extends Model implements Auditable, HasMedia
         }
 
         if ($data->type === 'email') {
+            $existingContact = $this->findExistingContactEmail($data->value);
+
+            if ($existingContact !== null) {
+                return $existingContact;
+            }
+
             $this->assertContactEmailIsUnique($data->value);
         }
 
         return app(CreateContactMethodAction::class)->execute($this, $data);
+    }
+
+    private function findExistingContactEmail(string $email): ?ContactMethod
+    {
+        if (! $this->exists) {
+            return null;
+        }
+
+        $normalizedEmail = static::normalizeEmail($email);
+
+        if ($normalizedEmail === null) {
+            return null;
+        }
+
+        $query = ContactMethod::query()
+            ->withoutOwnerScope()
+            ->where('contactable_type', $this->getMorphClass())
+            ->where('contactable_id', $this->getKey())
+            ->where('type', 'email')
+            ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
+
+        if ($this->owner_type === null && $this->owner_id === null) {
+            $query->whereNull('owner_type')->whereNull('owner_id');
+        } else {
+            $query->where('owner_type', $this->owner_type)
+                ->where('owner_id', $this->owner_id);
+        }
+
+        return $query->first();
     }
 
     private function assertContactEmailIsUnique(string $email): void
