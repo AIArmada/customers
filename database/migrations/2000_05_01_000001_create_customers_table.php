@@ -20,6 +20,9 @@ return new class extends Migration
             // Link to User model
             $table->foreignUuid('user_id')->nullable();
 
+            // Loose link to the shared persons identity (see LinkCustomerToPerson)
+            $table->uuid('person_id')->nullable();
+
             // Basic info
             $table->string('first_name');
             $table->string('last_name');
@@ -47,6 +50,7 @@ return new class extends Migration
             $table->timestampsTz();
 
             // Indexes
+            $table->index('person_id', 'customers_person_id_index');
             $table->index(['status', 'accepts_marketing']);
             $table->index('is_guest');
             $table->index('activated_at');
