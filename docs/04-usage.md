@@ -269,12 +269,17 @@ $address = $customer->legacyAddresses()->create([
 ### Set Default Addresses
 
 ```php
+use AIArmada\Customers\Actions\SetDefaultCustomerAddress;
+
 // Set as default billing
-$address->setAsDefaultBilling();
+app(SetDefaultCustomerAddress::class)->execute($address, 'billing');
 
 // Set as default shipping
-$address->setAsDefaultShipping();
+app(SetDefaultCustomerAddress::class)->execute($address, 'shipping');
 ```
+
+Default-address changes are handled by `SetDefaultCustomerAddress`; the old
+address model mutators were removed.
 
 ### Get Default Addresses
 

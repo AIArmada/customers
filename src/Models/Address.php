@@ -18,9 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
-use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -134,53 +132,6 @@ class Address extends Model implements Auditable
     public function isShippingAddress(): bool
     {
         return $this->type->isShipping();
-    }
-
-    // =========================================================================
-    // DEFAULT MANAGEMENT
-    // =========================================================================
-
-    /**
-     * Set this as the default billing address.
-     */
-    public function setAsDefaultBilling(): void
-    {
-        $this->setAsDefault('is_default_billing');
-    }
-
-    /**
-     * Set this as the default shipping address.
-     */
-    public function setAsDefaultShipping(): void
-    {
-        $this->setAsDefault('is_default_shipping');
-    }
-
-    private function setAsDefault(string $column): void
-    {
-        if (! $this->exists) {
-            throw new LogicException('Only persisted addresses can be made default.');
-        }
-
-        DB::transaction(function () use ($column): void {
-            $customer = Customer::query()
-                ->whereKey($this->customer_id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $address = $customer->legacyAddresses()
-                ->whereKey($this->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $customer->legacyAddresses()
-                ->where('id', '!=', $address->getKey())
-                ->update([$column => false]);
-
-            $address->forceFill([$column => true])->save();
-        });
-
-        $this->setAttribute($column, true);
     }
 
     public function toAddressingData(): AddressData

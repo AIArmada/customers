@@ -14,17 +14,18 @@ use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\Contacting\Concerns\HasSocialProfiles;
 use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Contacting\Models\ContactMethod;
+use AIArmada\Customers\Concerns\HasCustomerAddresses;
+use AIArmada\Customers\Concerns\HasCustomerLifecycle;
+use AIArmada\Customers\Concerns\HasCustomerSegmentation;
 use AIArmada\Customers\Enums\CustomerStatus;
 use AIArmada\Customers\Events\CustomerCreated;
 use AIArmada\Customers\Events\CustomerUpdated;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Validation\ValidationException;
@@ -71,6 +72,9 @@ class Customer extends Model implements Auditable, HasMedia
     use HasAddresses;
     use HasCommerceAudit;
     use HasContactMethods;
+    use HasCustomerAddresses;
+    use HasCustomerLifecycle;
+    use HasCustomerSegmentation;
     use HasFactory;
     use HasOwner;
     use HasOwnerScopeConfig;
@@ -276,37 +280,6 @@ class Customer extends Model implements Auditable, HasMedia
     }
 
     /**
-     * Get the customer's legacy package-local addresses.
-     *
-     * New reusable addresses belong to the addressing package and are exposed
-     * through the HasAddresses trait.
-     *
-     * @return HasMany<Address, $this>
-     */
-    public function legacyAddresses(): HasMany
-    {
-        return $this->hasMany(Address::class, 'customer_id');
-    }
-
-    /**
-     * Get the customer's segments.
-     *
-     * @return BelongsToMany<Segment, $this>
-     */
-    public function segments(): BelongsToMany
-    {
-        $tables = config('customers.database.tables', []);
-        $prefix = config('customers.database.table_prefix', 'customer_');
-
-        return $this->belongsToMany(
-            Segment::class,
-            $tables['segment_customer'] ?? $prefix . 'segment_customer',
-            'customer_id',
-            'segment_id'
-        )->withTimestamps();
-    }
-
-    /**
      * Get the customer's notes.
      *
      * @return HasMany<CustomerNote, $this>
@@ -314,139 +287,6 @@ class Customer extends Model implements Auditable, HasMedia
     public function notes(): HasMany
     {
         return $this->hasMany(CustomerNote::class, 'customer_id')->latest();
-    }
-
-    /**
-     * Get the customer's group memberships.
-     *
-     * @return BelongsToMany<CustomerGroup, $this>
-     */
-    public function groups(): BelongsToMany
-    {
-        $tables = config('customers.database.tables', []);
-        $prefix = config('customers.database.table_prefix', 'customer_');
-
-        return $this->belongsToMany(
-            CustomerGroup::class,
-            $tables['group_members'] ?? $prefix . 'group_members',
-            'customer_id',
-            'group_id'
-        )->withPivot(['role', 'joined_at'])->withTimestamps();
-    }
-
-    // =========================================================================
-    // ADDRESS HELPERS
-    // =========================================================================
-
-    /**
-     * Get the default billing address.
-     */
-    public function getDefaultBillingAddress(): ?Address
-    {
-        return $this->legacyAddresses()
-            ->where('is_default_billing', true)
-            ->first();
-    }
-
-    /**
-     * Get the default shipping address.
-     */
-    public function getDefaultShippingAddress(): ?Address
-    {
-        return $this->legacyAddresses()
-            ->where('is_default_shipping', true)
-            ->first();
-    }
-
-    // =========================================================================
-    // STATUS HELPERS
-    // =========================================================================
-
-    public function isActive(): bool
-    {
-        return $this->status === CustomerStatus::Active;
-    }
-
-    public function isGuest(): bool
-    {
-        return $this->is_guest;
-    }
-
-    public function isSuspended(): bool
-    {
-        return $this->status === CustomerStatus::Suspended;
-    }
-
-    public function canPlaceOrders(): bool
-    {
-        return $this->status->canPlaceOrders();
-    }
-
-    // =========================================================================
-    // MARKETING HELPERS
-    // =========================================================================
-
-    public function acceptsMarketing(): bool
-    {
-        return $this->accepts_marketing;
-    }
-
-    public function optInMarketing(): void
-    {
-        $this->update([
-            'accepts_marketing' => true,
-            'marketing_consented_at' => CarbonImmutable::now(),
-        ]);
-    }
-
-    public function optOutMarketing(): void
-    {
-        $this->update([
-            'accepts_marketing' => false,
-            'marketing_revoked_at' => CarbonImmutable::now(),
-        ]);
-    }
-
-    // =========================================================================
-    // FULL NAME
-    // =========================================================================
-
-    public function getFullNameAttribute(): string
-    {
-        return mb_trim("{$this->first_name} {$this->last_name}");
-    }
-
-    // =========================================================================
-    // SCOPES
-    // =========================================================================
-
-    /**
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('status', CustomerStatus::Active);
-    }
-
-    /**
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeAcceptsMarketing(Builder $query): Builder
-    {
-        return $query->where('accepts_marketing', true);
-    }
-
-    /**
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeInSegment(Builder $query, string | Segment $segment): Builder
-    {
-        $segmentId = $segment instanceof Segment ? $segment->id : $segment;
-
-        return $query->whereHas('segments', fn (Builder $segmentQuery) => $segmentQuery->whereKey($segmentId));
     }
 
     // =========================================================================
@@ -473,31 +313,6 @@ class Customer extends Model implements Auditable, HasMedia
         $media = $this->getFirstMedia('avatar');
 
         return $media?->getUrl($conversion);
-    }
-
-    // =========================================================================
-    // TAG HELPERS
-    // =========================================================================
-
-    /**
-     * Tag the customer for segmentation.
-     *
-     * @param  array<int, string>|string  $tags
-     */
-    public function tagForSegment(array | string $tags): static
-    {
-        $this->attachTags($tags, 'segments');
-
-        return $this;
-    }
-
-    /**
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeWithSegmentTag(Builder $query, string $tag): Builder
-    {
-        return $query->withAnyTags([$tag], 'segments');
     }
 
     // =========================================================================
