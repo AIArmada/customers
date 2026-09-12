@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Models;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\Addressing\Traits\HasAddresses;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
@@ -14,7 +15,6 @@ use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\Contacting\Concerns\HasSocialProfiles;
 use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Contacting\Models\ContactMethod;
-use AIArmada\Customers\Concerns\HasCustomerAddresses;
 use AIArmada\Customers\Concerns\HasCustomerLifecycle;
 use AIArmada\Customers\Concerns\HasCustomerSegmentation;
 use AIArmada\Customers\Enums\CustomerStatus;
@@ -61,8 +61,7 @@ use Spatie\Tags\HasTags;
  * @property-read Model|null $user
  * @property-read Model|null $person
  * @property-read Model|null $owner
- * @property-read Collection<int, Address> $legacyAddresses
- * @property-read Collection<int, \AIArmada\Addressing\Models\Address> $addresses
+ * @property-read Collection<int, Address> $addresses
  * @property-read Collection<int, Segment> $segments
  * @property-read Collection<int, CustomerNote> $notes
  * @property-read Collection<int, CustomerGroup> $groups
@@ -72,7 +71,6 @@ class Customer extends Model implements Auditable, HasMedia
     use HasAddresses;
     use HasCommerceAudit;
     use HasContactMethods;
-    use HasCustomerAddresses;
     use HasCustomerLifecycle;
     use HasCustomerSegmentation;
     use HasFactory;
@@ -322,7 +320,6 @@ class Customer extends Model implements Auditable, HasMedia
     protected static function booted(): void
     {
         static::deleting(function (Customer $customer): void {
-            $customer->legacyAddresses()->delete();
             $customer->addresses()->detach();
             $customer->notes()->delete();
             $customer->segments()->detach();

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Payment;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentCustomerData;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectDriverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Services\CustomerResolver;
 
@@ -91,11 +91,11 @@ final class CustomersPaymentSubjectDriver implements PaymentSubjectDriverInterfa
     {
         $billingAddress = $this->resolveAddress(
             $context->billingData,
-            $customer->getDefaultBillingAddress(),
+            $customer->primaryAddress('billing'),
         );
         $shippingAddress = $this->resolveAddress(
             $context->shippingData,
-            $customer->getDefaultShippingAddress(),
+            $customer->primaryAddress('shipping'),
         );
         $billingCountry = $billingAddress['country_code'] ?? $billingAddress['country'] ?? null;
         $shippingCountry = $shippingAddress['country_code'] ?? $shippingAddress['country'] ?? null;

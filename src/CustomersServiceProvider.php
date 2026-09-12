@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
 use AIArmada\Customers\Console\Commands\RebuildSegmentsCommand;
-use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Models\CustomerGroup;
 use AIArmada\Customers\Models\CustomerNote;

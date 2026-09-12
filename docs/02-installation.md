@@ -9,7 +9,7 @@ title: Installation
 - PHP 8.4+
 - Laravel 11+
 - aiarmada/commerce-support package
-- aiarmada/addressing package (required for the reusable-address pilot)
+- aiarmada/addressing package (required for canonical customer addresses)
 - aiarmada/contacting package
 - Spatie Media Library 11+
 - Spatie Tags 4.2+
@@ -44,12 +44,15 @@ php artisan migrate
 
 This creates the following tables:
 - `customers` - Customer profiles
-- `customer_addresses` - Customer addresses
 - `customer_segments` - Customer segments
 - `customer_segment_customer` - Segment membership pivot
 - `customer_groups` - Customer buying groups
 - `customer_group_members` - Group membership pivot
 - `customer_notes` - Customer notes
+
+The required `aiarmada/addressing` package owns the canonical `addresses`
+and `addressables` tables used by customer address attachments. Its migrations
+must run before customer address data is written.
 
 The package also discovers one guarded link migration that adds nullable,
 indexed `customers.person_id` without a foreign-key constraint or backfill.

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Policies;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\Customers\Models\Address;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,7 +20,7 @@ final class AddressPolicy
 
     private function resolveOwner(): ?Model
     {
-        if (! (bool) config('customers.features.owner.enabled', false)) {
+        if (! Address::ownerScopeConfig()->enabled) {
             return null;
         }
 
@@ -29,12 +29,14 @@ final class AddressPolicy
 
     private function isAccessible(Address $address): bool
     {
-        if (! (bool) config('customers.features.owner.enabled', false)) {
+        $ownerScopeConfig = Address::ownerScopeConfig();
+
+        if (! $ownerScopeConfig->enabled) {
             return true;
         }
 
         $owner = $this->resolveOwner();
-        $includeGlobal = (bool) config('customers.features.owner.include_global', false);
+        $includeGlobal = $ownerScopeConfig->includeGlobal;
 
         if ($owner === null) {
             return $address->owner_type === null && $address->owner_id === null;

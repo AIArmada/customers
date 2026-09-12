@@ -242,74 +242,50 @@ $activeCustomers = Customer::active()->get();
 $marketingList = Customer::acceptsMarketing()->get();
 ```
 
-## Legacy customer-address management
+## Customer address management
 
-The pilot keeps `customer_addresses` for checkout and default-address
-behavior. New reusable attachments use the `addressing` path above; existing
-legacy rows are accessed explicitly through `legacyAddresses()`.
+Customer addresses are canonical `addressing.Address` records attached
+through the `HasAddresses` relation. The pivot `type` identifies billing or
+shipping, and `is_primary` guarantees one current default per customer and
+type.
 
-### Add Address
+### Add and attach an address
 
 ```php
-use AIArmada\Customers\Enums\AddressType;
+use AIArmada\Addressing\Models\Address;
 
-$address = $customer->legacyAddresses()->create([
-    'type' => AddressType::Shipping,
+$address = Address::create([
     'label' => 'Home',
-    'recipient_name' => 'John Doe',
     'line1' => '456 Oak Avenue',
     'line2' => 'Apt 3B',
     'city' => 'Petaling Jaya',
     'state' => 'Selangor',
     'postcode' => '46000',
-    'country' => 'MY',
+    'country_code' => 'MY',
 ]);
+
+$customer->attachAddress(
+    address: $address,
+    type: 'shipping',
+    isPrimary: true,
+);
 ```
 
-### Set Default Addresses
+### Set and read defaults
 
 ```php
 use AIArmada\Customers\Actions\SetDefaultCustomerAddress;
 
-// Set as default billing
-app(SetDefaultCustomerAddress::class)->execute($address, 'billing');
+app(SetDefaultCustomerAddress::class)->execute($customer, $address, 'shipping');
 
-// Set as default shipping
-app(SetDefaultCustomerAddress::class)->execute($address, 'shipping');
+$billingAddress = $customer->primaryAddress('billing');
+$shippingAddress = $customer->primaryAddress('shipping');
 ```
 
-Default-address changes are handled by `SetDefaultCustomerAddress`; the old
-address model mutators were removed.
-
-### Get Default Addresses
-
-```php
-$billingAddress = $customer->getDefaultBillingAddress();
-$shippingAddress = $customer->getDefaultShippingAddress();
-```
-
-### Format Address
-
-```php
-// Single line
-echo $address->full_address;
-// "456 Oak Avenue, Apt 3B, Petaling Jaya, Selangor, 46000, MY"
-
-// Multi-line formatted
-echo $address->getFormattedAddress();
-/*
-Home
-John Doe
-456 Oak Avenue
-Apt 3B
-Petaling Jaya Selangor 46000
-MY
-*/
-
-// For shipping labels
-$labelData = $address->toShippingLabel();
-// ['name' => 'John Doe', 'line1' => '456 Oak Avenue', ...]
-```
+`SetDefaultCustomerAddress` validates that the address belongs to the
+customer's owner context and attachment type before changing the primary
+pivot. Deleting a customer removes its addressable links; shared address rows
+remain reusable by other addressables.
 
 ## Marketing Preferences
 

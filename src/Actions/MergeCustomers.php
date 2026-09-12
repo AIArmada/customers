@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Actions;
 
+use AIArmada\Addressing\Models\Address;
+use AIArmada\Addressing\Models\Addressable;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Contacting\Models\ContactMethod;
 use AIArmada\Contacting\Models\SocialProfile;
 use AIArmada\Customers\Events\CustomerUpdated;
-use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -49,41 +50,64 @@ final class MergeCustomers
 
     private function moveAddresses(Customer $source, Customer $target): void
     {
-        $targetDefaultBilling = $target->legacyAddresses()->where('is_default_billing', true)->exists();
-        $targetDefaultShipping = $target->legacyAddresses()->where('is_default_shipping', true)->exists();
+        $targetHasPrimary = [
+            'billing' => $target->primaryAddress('billing') !== null,
+            'shipping' => $target->primaryAddress('shipping') !== null,
+        ];
 
-        $source->loadMissing('legacyAddresses');
+        $source->loadMissing('addresses');
 
-        foreach ($source->legacyAddresses as $address) {
-            if ($this->isDuplicateAddress($target, $address)) {
-                $address->delete();
+        foreach ($source->addresses as $address) {
+            $pivot = $address->pivot;
+
+            if (! $pivot instanceof Addressable) {
+                continue;
+            }
+
+            $type = (string) $pivot->type;
+            $targetHasPrimary[$type] ??= $target->primaryAddress($type) !== null;
+
+            $duplicate = $this->findDuplicateAddress($target, $address, $type);
+
+            if ($duplicate instanceof Address) {
+                if ((bool) $pivot->is_primary && ! $targetHasPrimary[$type]) {
+                    $target->setPrimaryAddress($duplicate, type: $type);
+                    $targetHasPrimary[$type] = true;
+                }
 
                 continue;
             }
 
-            if ($address->is_default_billing && $targetDefaultBilling) {
-                $address->is_default_billing = false;
-            }
+            $isPrimary = (bool) $pivot->is_primary && ! $targetHasPrimary[$type];
 
-            if ($address->is_default_shipping && $targetDefaultShipping) {
-                $address->is_default_shipping = false;
-            }
+            $target->attachAddress(
+                address: $address,
+                type: $type,
+                isPrimary: $isPrimary,
+                label: $pivot->label ?? $address->label,
+            );
 
-            $address->customer_id = $target->id;
-            $address->save();
+            if ($isPrimary) {
+                $targetHasPrimary[$type] = true;
+            }
         }
     }
 
-    private function isDuplicateAddress(Customer $customer, Address $address): bool
+    private function findDuplicateAddress(Customer $customer, Address $address, string $type): ?Address
     {
         $countryCode = $this->resolveAddressCountryCode($address);
 
-        $query = $customer->legacyAddresses()
-            ->where('type', $address->type->value)
+        $query = $customer->addresses()
+            ->wherePivot('type', $type)
             ->where('line1', $address->line1)
             ->where('city', $address->city)
-            ->where('postcode', $address->postcode)
-            ->where('country_code', $countryCode);
+            ->where('postcode', $address->postcode);
+
+        if ($countryCode === null) {
+            $query->whereNull('country_code');
+        } else {
+            $query->where('country_code', $countryCode);
+        }
 
         if ($address->line2 === null) {
             $query->whereNull('line2');
@@ -97,7 +121,7 @@ final class MergeCustomers
             $query->where('state', $address->state);
         }
 
-        return $query->exists();
+        return $query->first();
     }
 
     private function moveContactMethods(Customer $source, Customer $target): void

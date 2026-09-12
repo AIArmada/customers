@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Concerns;
 
+use AIArmada\Addressing\Data\AddressData;
+use AIArmada\Addressing\Models\Address;
 use AIArmada\Customers\Enums\AddressType;
 use AIArmada\Customers\Models\Customer;
 
@@ -18,8 +20,8 @@ trait SynchronizesCustomerAddresses
         array $billingData,
         array $shippingData,
     ): void {
-        $this->createAddress($customer, $billingData, AddressType::Billing, true, false);
-        $this->createAddress($customer, $shippingData, AddressType::Shipping, false, true);
+        $this->createAddress($customer, $billingData, AddressType::Billing, true);
+        $this->createAddress($customer, $shippingData, AddressType::Shipping, true);
     }
 
     /**
@@ -29,29 +31,39 @@ trait SynchronizesCustomerAddresses
         Customer $customer,
         array $data,
         AddressType $type,
-        bool $setDefaultBilling,
-        bool $setDefaultShipping,
+        bool $setAsPrimary,
     ): void {
-        $payload = $this->normalizeAddressPayload($customer, $data, $type, $setDefaultBilling, $setDefaultShipping);
+        $payload = $this->normalizeAddressPayload($data);
 
-        if ($payload === null || $this->hasMatchingAddress($customer, $payload)) {
+        if ($payload === null) {
             return;
         }
 
-        $customer->legacyAddresses()->create($payload);
+        $matchingAddress = $this->findMatchingAddress($customer, $payload, $type);
+
+        if ($matchingAddress instanceof Address) {
+            if ($setAsPrimary && $customer->primaryAddress($type->value) === null) {
+                $customer->setPrimaryAddress($matchingAddress, type: $type->value);
+            }
+
+            return;
+        }
+
+        $address = Address::create($payload->toModelAttributes());
+
+        $customer->attachAddress(
+            address: $address,
+            type: $type->value,
+            isPrimary: $setAsPrimary && $customer->primaryAddress($type->value) === null,
+            label: $payload->label,
+        );
     }
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>|null
      */
-    private function normalizeAddressPayload(
-        Customer $customer,
-        array $data,
-        AddressType $type,
-        bool $setDefaultBilling,
-        bool $setDefaultShipping,
-    ): ?array {
+    private function normalizeAddressPayload(array $data): ?AddressData
+    {
         $line1 = $this->resolveAddressField($data, ['line1']);
         $city = $this->resolveAddressField($data, ['city', 'town']);
         $postcode = $this->resolveAddressField($data, ['postcode', 'zip']);
@@ -63,51 +75,44 @@ trait SynchronizesCustomerAddresses
 
         $line2 = $this->resolveAddressField($data, ['line2']);
         $state = $this->resolveAddressField($data, ['state', 'province', 'region']);
+        $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+        $metadata['recipient_name'] = $this->resolveRecipientName($data);
+        $metadata['company'] = $this->cleanString($data['company'] ?? null);
 
-        $defaultBilling = $setDefaultBilling && ! $customer->legacyAddresses()->where('is_default_billing', true)->exists();
-        $defaultShipping = $setDefaultShipping && ! $customer->legacyAddresses()->where('is_default_shipping', true)->exists();
-
-        return [
-            'type' => $type->value,
+        return AddressData::from([
             'label' => $this->cleanString($data['label'] ?? null),
-            'recipient_name' => $this->resolveRecipientName($data),
-            'company' => $this->cleanString($data['company'] ?? null),
             'line1' => $line1,
             'line2' => $line2,
             'city' => $city,
             'state' => $state,
             'postcode' => $postcode,
-            'country_code' => mb_strtoupper($country),
-            'is_default_billing' => $defaultBilling,
-            'is_default_shipping' => $defaultShipping,
-        ];
+            'countryCode' => mb_strtoupper($country),
+            'metadata' => $metadata,
+        ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function hasMatchingAddress(Customer $customer, array $payload): bool
+    private function findMatchingAddress(Customer $customer, AddressData $payload, AddressType $type): ?Address
     {
-        $query = $customer->legacyAddresses()
-            ->where('type', $payload['type'])
-            ->where('line1', $payload['line1'])
-            ->where('city', $payload['city'])
-            ->where('postcode', $payload['postcode'])
-            ->where('country_code', $payload['country_code']);
+        $query = $customer->addresses()
+            ->wherePivot('type', $type->value)
+            ->where('line1', $payload->line1)
+            ->where('city', $payload->city)
+            ->where('postcode', $payload->postcode)
+            ->where('country_code', $payload->countryCode);
 
-        if ($payload['line2'] === null) {
+        if ($payload->line2 === null) {
             $query->whereNull('line2');
         } else {
-            $query->where('line2', $payload['line2']);
+            $query->where('line2', $payload->line2);
         }
 
-        if ($payload['state'] === null) {
+        if ($payload->state === null) {
             $query->whereNull('state');
         } else {
-            $query->where('state', $payload['state']);
+            $query->where('state', $payload->state);
         }
 
-        return $query->exists();
+        return $query->first();
     }
 
     /**

@@ -10,7 +10,6 @@ return [
         'json_column_type' => env('CUSTOMERS_JSON_COLUMN_TYPE', 'jsonb'),
         'tables' => [
             'customers' => 'customers',
-            'addresses' => 'customer_addresses',
             'segments' => 'customer_segments',
             'segment_customer' => 'customer_segment_customer',
             'groups' => 'customer_groups',

@@ -84,8 +84,8 @@ if (config('customers.features.owner.enabled')) {
         ->forOwner($owner, includeGlobal: false)
         ->findOrFail($customerId);
     
-    // Legacy checkout/default-address path
-    $customer->legacyAddresses()->create([...]);
+    $address = \AIArmada\Addressing\Models\Address::create([...]);
+    $customer->attachAddress($address, type: 'shipping', isPrimary: true);
 }
 ```
 
@@ -135,7 +135,7 @@ if ($existing) {
 **Solution**: Eager load relationships:
 
 ```php
-$customers = Customer::with(['segments', 'legacyAddresses'])->get();
+$customers = Customer::with(['segments', 'addresses'])->get();
 ```
 
 **Problem**: Slow segment rebuilds
@@ -178,7 +178,8 @@ if ($customer->orders()->exists()) {
     throw new \Exception('Cannot delete customer with orders');
 }
 
-// Then delete (cascades will handle addresses, notes, etc.)
+// Then delete (customer-owned notes/memberships and addressable links are
+// removed by the model lifecycle)
 $customer->delete();
 ```
 

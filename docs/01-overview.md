@@ -33,8 +33,8 @@ pilot must ratify the same decision before adopting `HasAddresses`.
 
 - Customer profiles, lifecycle state, and marketing preferences
 - Customer contact ownership through Contacting's canonical contact-method rows
-- Legacy customer-address storage and default billing/shipping rules, plus the
-  forward `addressing.HasAddresses` attachment path for new reusable addresses
+- Canonical `addressing.HasAddresses` customer address attachments and typed
+  billing/shipping default orchestration
 - Manual and automatic customer segments with rebuild logic
 - Customer groups and internal/customer-visible notes
 - Customer policies, events, and segmentation services
@@ -67,7 +67,6 @@ cutover.
 
 ### Models
 - `Customer`
-- `Address`
 - `Segment`
 - `CustomerGroup`
 - `CustomerNote`
@@ -101,9 +100,9 @@ cutover.
 - **Marketing Preferences**: Track opt-in/opt-out status for marketing communications
 
 ### Address Management
-- **Canonical forward path**: New reusable attachments use `addressing.Address` + `HasAddresses`
-- **Legacy compatibility**: `customer_addresses` remains the source for checkout hydration and default billing/shipping helpers during this pilot
-- **Bridge**: `customers.Address::toAddressingData()` converts a legacy row without copying or deleting data
+- **Canonical storage**: `addressing.Address` records attach through `Customer::addresses()` and `Customer::attachAddress()`
+- **Typed defaults**: `Customer::primaryAddress('billing'|'shipping')` resolves defaults, with `SetDefaultCustomerAddress` enforcing one primary per type
+- **Owner safety**: Address records, addressable pivots, and customer rows are resolved within the same owner context
 
 ### Customer Segmentation
 - **Automatic Segments**: Rules-based customer segmentation

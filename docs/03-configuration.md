@@ -17,7 +17,6 @@ Configure custom table names:
     'table_prefix' => 'customer_',
     'tables' => [
         'customers' => 'customers',
-        'addresses' => 'customer_addresses',
         'segments' => 'customer_segments',
         'segment_customer' => 'customer_segment_customer',
         'groups' => 'customer_groups',
@@ -143,10 +142,7 @@ The migrations include optimized indexes for common queries:
 $table->index(['status', 'accepts_marketing']);
 $table->index('is_guest');
 
-// Addresses table
-$table->index(['customer_id', 'type']);
-$table->index(['customer_id', 'is_default_billing']);
-$table->index(['customer_id', 'is_default_shipping']);
+// Address and addressable indexes are owned by the addressing package.
 
 // Segments table: owner_scope is retained as a legacy database guard.
 // Segment model code enforces the authoritative owner tuple plus slug.

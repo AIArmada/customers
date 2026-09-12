@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Concerns;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\Contacting\Data\ContactMethodData;
-use AIArmada\Customers\Models\Address;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Support\CustomerProfileNormalizer;
 use Illuminate\Database\Eloquent\Model;
@@ -116,7 +116,7 @@ trait HasCustomerProfile
             return null;
         }
 
-        return $customerProfile->getDefaultShippingAddress();
+        return $customerProfile->primaryAddress('shipping');
     }
 
     /**
@@ -130,6 +130,6 @@ trait HasCustomerProfile
             return null;
         }
 
-        return $customerProfile->getDefaultBillingAddress();
+        return $customerProfile->primaryAddress('billing');
     }
 }
