@@ -130,6 +130,10 @@ if ($existing) {
 
 ### Performance Issues
 
+**Problem**: Slow owner-scoped customer or segment queries
+
+**Solution**: The migrations ship composite `(owner_type, owner_id, status)` indexes on `customers` and `(owner_type, owner_id, is_active)` on segments. If you run a custom table prefix, re-run migrations so the indexes are created under your prefix; every owner-scoped read filters on the owner tuple first.
+
 **Problem**: Slow customer queries with segments
 
 **Solution**: Eager load relationships:

@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        commerce_schema_create_if_missing(config('customers.database.tables.customers', 'customers'), function (Blueprint $table): void {
+        Schema::create(config('customers.database.tables.customers', 'customers'), function (Blueprint $table): void {
             $jsonColumnType = commerce_json_column_type('customers', 'jsonb');
 
             $table->uuid('id')->primary();
@@ -55,6 +56,7 @@ return new class extends Migration
             $table->index('is_guest');
             $table->index('activated_at');
             $table->index('suspended_at');
+            $table->index(['owner_type', 'owner_id', 'status'], 'customers_owner_status_index');
         });
     }
 };
