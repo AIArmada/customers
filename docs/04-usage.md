@@ -53,6 +53,19 @@ $customer = app(LinkCustomerToPerson::class)->executeByKey($customer, $personId)
 $customer = app(MergeCustomers::class)->execute($target, $source);
 ```
 
+### MergeCustomers behavior
+
+`MergeCustomers::execute($target, $source)` requires both customers to share one owner tuple, then moves addresses, contact methods, social profiles, segments, groups, and notes inside a single `DB::transaction()`, deletes the source, and dispatches `CustomerUpdated` for the refreshed target.
+
+```php
+use AIArmada\Customers\Actions\MergeCustomers;
+use AIArmada\Customers\Events\CustomerUpdated;
+
+$customer = app(MergeCustomers::class)->execute($target, $source);
+// Source is deleted; $customer is the refreshed target. Listen on
+// CustomerUpdated::class to react after the transaction commits.
+```
+
 ## Creating Customers
 
 ### Basic Customer Creation
@@ -75,6 +88,10 @@ $customer->addContactMethod(ContactMethodData::phone('+60123456789', 'MY'));
 
 echo "Created: {$customer->full_name}"; // "John Doe"
 ```
+
+### Contact storage (Contacting-only)
+
+The `customers` table has no `email` or `phone` columns. All owned contact paths are `Contacting` rows (`addContactMethod()`); `$customer->email` reads resolve to `null`.
 
 ### Link to User
 
@@ -285,7 +302,7 @@ $shippingAddress = $customer->primaryAddress('shipping');
 `SetDefaultCustomerAddress` validates that the address belongs to the
 customer's owner context and attachment type before changing the primary
 pivot. Deleting a customer removes its addressable links; shared address rows
-remain reusable by other addressables.
+remain reusable by other addressables. Attach addresses through `HasAddresses`; `SetDefaultCustomerAddress` works against these canonical primaries.
 
 ## Marketing Preferences
 
