@@ -10,6 +10,7 @@ use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleParser;
 use AIArmada\Customers\Events\CustomerSegmentChanged;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Models\Segment;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 final class RebuildAllSegments
@@ -82,42 +83,59 @@ final class RebuildAllSegments
                 return $segment->customers()->count();
             }
 
-            $matchingCustomers = $segment->getMatchingCustomers();
-            $currentCustomerIds = $segment->customers()->pluck('id')->toArray();
-            $newCustomerIds = $matchingCustomers->pluck('id')->toArray();
+            $newCustomerIds = [];
 
-            $addedIds = array_diff($newCustomerIds, $currentCustomerIds);
-            $removedIds = array_diff($currentCustomerIds, $newCustomerIds);
+            $segment->matchingCustomersQuery()
+                ->select('id')
+                ->chunkById(1000, function (Collection $customers) use (&$newCustomerIds): void {
+                    foreach ($customers as $customer) {
+                        $newCustomerIds[] = (string) $customer->getKey();
+                    }
+                });
+
+            $currentCustomerIds = [];
+            $relatedKey = $segment->customers()->getRelated()->qualifyColumn('id');
+
+            $segment->customers()
+                ->select($relatedKey)
+                ->chunkById(1000, function (Collection $customers) use (&$currentCustomerIds): void {
+                    foreach ($customers as $customer) {
+                        $currentCustomerIds[] = (string) $customer->getKey();
+                    }
+                }, $relatedKey);
+
+            $addedIds = array_values(array_diff($newCustomerIds, $currentCustomerIds));
+            $removedIds = array_values(array_diff($currentCustomerIds, $newCustomerIds));
 
             $segment->customers()->sync($newCustomerIds);
 
-            $changedIds = array_values(array_unique(array_merge($addedIds, $removedIds)));
-            if ($changedIds === []) {
-                return count($newCustomerIds);
-            }
-
-            $customersById = Customer::query()
-                ->forOwner($segmentOwner, includeGlobal: false)
-                ->whereIn('id', $changedIds)
-                ->get()
-                ->keyBy('id');
-
-            foreach ($addedIds as $customerId) {
-                $customer = $customersById->get($customerId);
-                if ($customer !== null) {
-                    event(new CustomerSegmentChanged($customer, $segment, 'added'));
-                }
-            }
-
-            foreach ($removedIds as $customerId) {
-                $customer = $customersById->get($customerId);
-                if ($customer !== null) {
-                    event(new CustomerSegmentChanged($customer, $segment, 'removed'));
-                }
-            }
+            $this->dispatchMembershipEvents($segment, $segmentOwner, $addedIds, 'added');
+            $this->dispatchMembershipEvents($segment, $segmentOwner, $removedIds, 'removed');
 
             return count($newCustomerIds);
         });
+    }
+
+    /**
+     * @param  array<int, string>  $customerIds
+     */
+    private function dispatchMembershipEvents(Segment $segment, ?Model $segmentOwner, array $customerIds, string $action): void
+    {
+        foreach (array_chunk($customerIds, 1000) as $chunk) {
+            $customersById = Customer::query()
+                ->forOwner($segmentOwner, includeGlobal: false)
+                ->whereIn('id', $chunk)
+                ->get()
+                ->keyBy(fn (Customer $customer): string => (string) $customer->getKey());
+
+            foreach ($chunk as $customerId) {
+                $customer = $customersById->get($customerId);
+
+                if ($customer instanceof Customer) {
+                    event(new CustomerSegmentChanged($customer, $segment, $action));
+                }
+            }
+        }
     }
 
     private function ownerLabel(?string $ownerType, string | int | null $ownerId): string

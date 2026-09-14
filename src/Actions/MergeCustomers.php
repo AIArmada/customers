@@ -11,6 +11,8 @@ use AIArmada\Contacting\Models\ContactMethod;
 use AIArmada\Contacting\Models\SocialProfile;
 use AIArmada\Customers\Events\CustomerUpdated;
 use AIArmada\Customers\Models\Customer;
+use AIArmada\Customers\Models\CustomerNote;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -184,19 +186,43 @@ final class MergeCustomers
 
     private function mergeGroups(Customer $source, Customer $target): void
     {
-        $groupsRelation = $source->groups();
-        $groupIds = $groupsRelation
-            ->pluck($groupsRelation->getRelated()->qualifyColumn($groupsRelation->getRelatedKeyName()))
-            ->all();
+        $source->loadMissing('groups');
 
-        if ($groupIds !== []) {
-            $target->groups()->syncWithoutDetaching($groupIds);
+        $attach = [];
+
+        foreach ($source->groups as $group) {
+            $attach[$group->getKey()] = [
+                'role' => $group->pivot->role ?? 'member',
+                'joined_at' => $group->pivot->joined_at ?? CarbonImmutable::now(),
+            ];
+        }
+
+        if ($attach !== []) {
+            $target->groups()->syncWithoutDetaching($attach);
         }
     }
 
     private function moveNotes(Customer $source, Customer $target): void
     {
+        $notes = $source->notes()->withoutOwnerScope()->get();
+
+        foreach ($notes as $note) {
+            if (! $this->noteSharesOwnerWithTarget($note, $target)) {
+                throw new InvalidArgumentException('Cannot merge customers with notes outside the target owner context.');
+            }
+        }
+
         $source->notes()->update(['customer_id' => $target->id]);
+    }
+
+    private function noteSharesOwnerWithTarget(CustomerNote $note, Customer $target): bool
+    {
+        if ($target->owner_type === null && $target->owner_id === null) {
+            return $note->owner_type === null && $note->owner_id === null;
+        }
+
+        return $note->owner_type === $target->owner_type
+            && (string) $note->owner_id === (string) $target->owner_id;
     }
 
     private function resolveAddressCountryCode(Address $address): ?string

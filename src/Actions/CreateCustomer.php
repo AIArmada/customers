@@ -35,14 +35,17 @@ final class CreateCustomer
             ?? $normalizer->normalizePhone($user?->getAttribute('phone'));
         $normalizedEmail = $normalizer->normalizeEmail($email);
 
-        $customer = DB::transaction(function () use ($company, $firstName, $isGuest, $lastName, $normalizedEmail, $phone, $user): Customer {
-            $customer = Customer::create([
-                'user_id' => $user?->getKey(),
+        return DB::transaction(function () use ($company, $firstName, $isGuest, $lastName, $normalizedEmail, $personId, $phone, $user): Customer {
+            $customer = Customer::query()->create([
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'company' => $company,
-                'is_guest' => $isGuest,
             ]);
+
+            $customer->forceFill([
+                'user_id' => $user?->getKey(),
+                'is_guest' => $isGuest,
+            ])->save();
 
             if ($normalizedEmail !== null) {
                 $customer->addContactMethod(new ContactMethodData(
@@ -61,11 +64,11 @@ final class CreateCustomer
                 ));
             }
 
+            if ($personId !== null) {
+                return app(LinkCustomerToPerson::class)->executeByKey($customer, $personId);
+            }
+
             return $customer;
         });
-
-        return $personId === null
-            ? $customer
-            : app(LinkCustomerToPerson::class)->executeByKey($customer, $personId);
     }
 }

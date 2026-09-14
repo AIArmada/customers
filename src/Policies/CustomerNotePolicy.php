@@ -7,15 +7,39 @@ namespace AIArmada\Customers\Policies;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Models\CustomerNote;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Database\Eloquent\Model;
+use Throwable;
 
 final class CustomerNotePolicy
 {
     use HandlesAuthorization;
 
-    private function isAuthenticated(mixed $user): bool
+    private function hasPermission(mixed $user, string $permission): bool
     {
-        return $user !== null;
+        if ($user === null) {
+            return false;
+        }
+
+        try {
+            // Gate-mediated check first: Spatie permissions resolve through
+            // Gate::before, which also preserves Super Admin overrides.
+            if ($user instanceof Authorizable) {
+                return $user->can($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'hasPermissionTo')) {
+                return (bool) $user->hasPermissionTo($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'can')) {
+                return (bool) $user->can($permission);
+            }
+        } catch (Throwable) {
+            return false;
+        }
+
+        return false;
     }
 
     private function resolveOwner(): ?Model
@@ -49,26 +73,26 @@ final class CustomerNotePolicy
 
     public function viewAny(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.notes.view');
     }
 
     public function view(mixed $user, CustomerNote $note): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($note);
+        return $this->hasPermission($user, 'customers.notes.view') && $this->isAccessible($note);
     }
 
     public function create(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.notes.create');
     }
 
     public function update(mixed $user, CustomerNote $note): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($note);
+        return $this->hasPermission($user, 'customers.notes.update') && $this->isAccessible($note);
     }
 
     public function delete(mixed $user, CustomerNote $note): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($note);
+        return $this->hasPermission($user, 'customers.notes.delete') && $this->isAccessible($note);
     }
 }

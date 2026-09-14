@@ -11,28 +11,35 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Contacting\Actions\CreateContactMethodAction;
+use AIArmada\Contacting\Actions\NormalizeContactMethodAction;
 use AIArmada\Contacting\Concerns\HasContactMethods;
 use AIArmada\Contacting\Concerns\HasSocialProfiles;
 use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Contacting\Models\ContactMethod;
+use AIArmada\Contacting\Models\SocialProfile;
 use AIArmada\Customers\Concerns\HasCustomerLifecycle;
 use AIArmada\Customers\Concerns\HasCustomerSegmentation;
 use AIArmada\Customers\Enums\CustomerStatus;
 use AIArmada\Customers\Events\CustomerCreated;
 use AIArmada\Customers\Events\CustomerUpdated;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\LaravelData\Optional;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\File;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\Tags\HasTags;
 
 /**
@@ -85,23 +92,9 @@ class Customer extends Model implements Auditable, HasMedia
     protected static string $ownerScopeConfigKey = 'customers.features.owner';
 
     protected $fillable = [
-        'user_id',
         'first_name',
         'last_name',
         'company',
-        'status',
-        'is_guest',
-        'accepts_marketing',
-        'registered_at',
-        'activated_at',
-        'deactivated_at',
-        'suspended_at',
-        'verified_at',
-        'marketing_consented_at',
-        'marketing_revoked_at',
-        'metadata',
-        'created_at',
-        'updated_at',
     ];
 
     /**
@@ -126,7 +119,7 @@ class Customer extends Model implements Auditable, HasMedia
      */
     protected $attributes = [
         'status' => 'active',
-        'accepts_marketing' => true,
+        'accepts_marketing' => false,
         'is_guest' => false,
     ];
 
@@ -169,6 +162,22 @@ class Customer extends Model implements Auditable, HasMedia
             }
 
             $this->assertContactEmailIsUnique($data->value);
+
+            try {
+                return app(CreateContactMethodAction::class)->execute($this, $data);
+            } catch (UniqueConstraintViolationException) {
+                throw ValidationException::withMessages([
+                    'email' => 'The email has already been taken within the current owner scope.',
+                ]);
+            }
+        }
+
+        if (in_array($data->type, ['phone', 'mobile', 'whatsapp'], true)) {
+            $existingPhone = $this->findExistingContactPhone($data);
+
+            if ($existingPhone !== null) {
+                return $existingPhone;
+            }
         }
 
         return app(CreateContactMethodAction::class)->execute($this, $data);
@@ -190,15 +199,43 @@ class Customer extends Model implements Auditable, HasMedia
             ->withoutOwnerScope()
             ->where('contactable_type', $this->getMorphClass())
             ->where('contactable_id', $this->getKey())
-            ->where('type', 'email')
-            ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
+            ->where('type', 'email');
 
-        if ($this->owner_type === null && $this->owner_id === null) {
-            $query->whereNull('owner_type')->whereNull('owner_id');
-        } else {
-            $query->where('owner_type', $this->owner_type)
-                ->where('owner_id', $this->owner_id);
+        $this->constrainContactEmailMatch($query, $normalizedEmail);
+        $this->constrainContactQueryToCustomerOwner($query);
+
+        return $query->first();
+    }
+
+    private function findExistingContactPhone(ContactMethodData $data): ?ContactMethod
+    {
+        if (! $this->exists) {
+            return null;
         }
+
+        $countryCode = $data->countryCode instanceof Optional ? null : $data->countryCode;
+
+        $normalized = app(NormalizeContactMethodAction::class)->execute(
+            $data->type,
+            $data->value,
+            $countryCode ?? config('contacting.defaults.country_code'),
+        );
+
+        $query = ContactMethod::query()
+            ->withoutOwnerScope()
+            ->where('contactable_type', $this->getMorphClass())
+            ->where('contactable_id', $this->getKey())
+            ->where('type', $data->type);
+
+        $normalizedPhone = $normalized['normalized_value'];
+
+        if ($normalizedPhone !== null && $normalizedPhone !== '') {
+            $query->where('normalized_value', $normalizedPhone);
+        } else {
+            $query->where('value', $data->value);
+        }
+
+        $this->constrainContactQueryToCustomerOwner($query);
 
         return $query->first();
     }
@@ -214,15 +251,10 @@ class Customer extends Model implements Auditable, HasMedia
         $query = ContactMethod::query()
             ->withoutOwnerScope()
             ->where('contactable_type', $this->getMorphClass())
-            ->where('type', 'email')
-            ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
+            ->where('type', 'email');
 
-        if ($this->owner_type === null && $this->owner_id === null) {
-            $query->whereNull('owner_type')->whereNull('owner_id');
-        } else {
-            $query->where('owner_type', $this->owner_type)
-                ->where('owner_id', $this->owner_id);
-        }
+        $this->constrainContactEmailMatch($query, $normalizedEmail);
+        $this->constrainContactQueryToCustomerOwner($query);
 
         if ($this->exists) {
             $query->where('contactable_id', '!=', $this->getKey());
@@ -232,6 +264,38 @@ class Customer extends Model implements Auditable, HasMedia
             throw ValidationException::withMessages([
                 'email' => 'The email has already been taken within the current owner scope.',
             ]);
+        }
+    }
+
+    /**
+     * Match a normalized email sargably: exact match on the stored normalized
+     * value, with a legacy fallback for rows whose normalized value is missing.
+     *
+     * @param  Builder<ContactMethod>  $query
+     */
+    private function constrainContactEmailMatch(Builder $query, string $normalizedEmail): void
+    {
+        $query->where(function (Builder $query) use ($normalizedEmail): void {
+            $query->where('normalized_value', $normalizedEmail)
+                ->orWhere(function (Builder $query) use ($normalizedEmail): void {
+                    $query->where(function (Builder $query): void {
+                        $query->whereNull('normalized_value')
+                            ->orWhere('normalized_value', '');
+                    })->whereRaw('LOWER(TRIM(COALESCE(value, \'\'))) = ?', [$normalizedEmail]);
+                });
+        });
+    }
+
+    /**
+     * @param  Builder<ContactMethod>  $query
+     */
+    private function constrainContactQueryToCustomerOwner(Builder $query): void
+    {
+        if ($this->owner_type === null && $this->owner_id === null) {
+            $query->whereNull('owner_type')->whereNull('owner_id');
+        } else {
+            $query->where('owner_type', $this->owner_type)
+                ->where('owner_id', $this->owner_id);
         }
     }
 
@@ -300,7 +364,20 @@ class Customer extends Model implements Auditable, HasMedia
             ->singleFile()
             ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp']);
 
-        $this->addMediaCollection('documents');
+        $this->addMediaCollection('documents')
+            ->acceptsMimeTypes([
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'text/csv',
+                'text/plain',
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+            ])
+            ->acceptsFile(fn (File $file): bool => $file->size <= 10 * 1024 * 1024);
     }
 
     /**
@@ -324,6 +401,9 @@ class Customer extends Model implements Auditable, HasMedia
             $customer->notes()->delete();
             $customer->segments()->detach();
             $customer->groups()->detach();
+            $customer->contactMethods()->get()->each(fn (ContactMethod $contactMethod): bool => $contactMethod->delete());
+            $customer->socialProfiles()->get()->each(fn (SocialProfile $socialProfile): bool => $socialProfile->delete());
+            $customer->media()->get()->each(fn (Media $medium): bool => (bool) $medium->delete());
         });
     }
 

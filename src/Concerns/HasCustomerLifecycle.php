@@ -38,18 +38,18 @@ trait HasCustomerLifecycle
 
     public function optInMarketing(): void
     {
-        $this->update([
+        $this->forceFill([
             'accepts_marketing' => true,
             'marketing_consented_at' => CarbonImmutable::now(),
-        ]);
+        ])->save();
     }
 
     public function optOutMarketing(): void
     {
-        $this->update([
+        $this->forceFill([
             'accepts_marketing' => false,
             'marketing_revoked_at' => CarbonImmutable::now(),
-        ]);
+        ])->save();
     }
 
     public function getFullNameAttribute(): string

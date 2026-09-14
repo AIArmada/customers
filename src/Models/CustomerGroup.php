@@ -238,8 +238,12 @@ class CustomerGroup extends Model implements Auditable
     protected static function booted(): void
     {
         static::saving(function (CustomerGroup $group): void {
-            if ($group->isDirty('is_active') && $group->is_active === false && $group->getOriginal('is_active') === true) {
-                $group->deactivated_at = CarbonImmutable::now();
+            if ($group->isDirty('is_active')) {
+                if ($group->is_active === false) {
+                    $group->deactivated_at ??= CarbonImmutable::now();
+                } else {
+                    $group->deactivated_at = null;
+                }
             }
         });
 

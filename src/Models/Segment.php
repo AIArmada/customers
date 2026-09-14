@@ -17,8 +17,10 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
@@ -141,22 +143,64 @@ class Segment extends Model implements Auditable
     // =========================================================================
 
     /**
-     * Get customers matching the segment conditions.
+     * Build the query for customers matching the segment conditions.
+     *
+     * @return Builder<Customer>
      */
-    public function getMatchingCustomers(): Collection
+    public function matchingCustomersQuery(): Builder
     {
-        if (! $this->is_automatic || empty($this->conditions)) {
-            return $this->customers;
-        }
-
         $segmentOwner = OwnerContext::fromTypeAndId($this->owner_type, $this->owner_id);
 
         $query = Customer::query()
             ->active()
             ->forOwner($segmentOwner, includeGlobal: false);
+
+        if (empty($this->conditions)) {
+            $query->whereRaw('1 = 0');
+
+            return $query;
+        }
+
         $this->applyConditions($query, $this->conditions);
 
-        return $query->get();
+        return $query;
+    }
+
+    /**
+     * Get customers matching the segment conditions.
+     */
+    public function getMatchingCustomers(): Collection
+    {
+        if (! $this->is_automatic) {
+            return $this->customers;
+        }
+
+        return $this->matchingCustomersQuery()->get();
+    }
+
+    /**
+     * Count customers matching the segment conditions without hydrating models.
+     */
+    public function countMatchingCustomers(): int
+    {
+        if (! $this->is_automatic) {
+            return $this->customers()->count();
+        }
+
+        return $this->matchingCustomersQuery()->count();
+    }
+
+    /**
+     * Lazily iterate matching customer IDs in keyset chunks.
+     *
+     * @return LazyCollection<int, string>
+     */
+    public function matchingCustomerIds(int $chunkSize = 1000): LazyCollection
+    {
+        return $this->matchingCustomersQuery()
+            ->select('id')
+            ->lazyById($chunkSize)
+            ->map(fn (Customer $customer): string => (string) $customer->getKey());
     }
 
     /**
@@ -168,10 +212,19 @@ class Segment extends Model implements Auditable
             return $this->customers()->count();
         }
 
-        $matchingCustomers = $this->getMatchingCustomers();
-        $this->customers()->sync($matchingCustomers->pluck('id'));
+        $matchingIds = [];
 
-        return $matchingCustomers->count();
+        $this->matchingCustomersQuery()
+            ->select('id')
+            ->chunkById(1000, function (Collection $customers) use (&$matchingIds): void {
+                foreach ($customers as $customer) {
+                    $matchingIds[] = $customer->getKey();
+                }
+            });
+
+        $this->customers()->sync($matchingIds);
+
+        return count($matchingIds);
     }
 
     // =========================================================================
@@ -275,13 +328,32 @@ class Segment extends Model implements Auditable
     // BOOT
     // =========================================================================
 
+    public function save(array $options = []): bool
+    {
+        try {
+            return parent::save($options);
+        } catch (UniqueConstraintViolationException $exception) {
+            try {
+                $this->assertSlugIsUniqueWithinOwnerTuple();
+            } catch (ValidationException $validationException) {
+                throw $validationException;
+            }
+
+            throw $exception;
+        }
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Segment $segment): void {
             $segment->assertSlugIsUniqueWithinOwnerTuple();
 
-            if ($segment->isDirty('is_active') && $segment->is_active === false && $segment->getOriginal('is_active') === true) {
-                $segment->deactivated_at = CarbonImmutable::now();
+            if ($segment->isDirty('is_active')) {
+                if ($segment->is_active === false) {
+                    $segment->deactivated_at ??= CarbonImmutable::now();
+                } else {
+                    $segment->deactivated_at = null;
+                }
             }
         });
 
@@ -334,18 +406,27 @@ class Segment extends Model implements Auditable
     /**
      * Apply segment conditions to a query.
      *
-     * Conditions can use either 'value_numeric' / 'value_boolean' keys (Filament form)
-     * or a single public API 'value' key. We normalize before matching.
+     * Conditions can use 'value_numeric' / 'value_boolean' / 'value_status' keys
+     * (Filament form) or a single public API 'value' key. We normalize before
+     * matching. Missing fields, missing values, and unknown fields match
+     * nothing, mirroring SegmentationService::evaluateCondition().
      *
-     * @param  array<int, array{field?: string|null, operator?: string, value?: mixed, value_numeric?: mixed, value_boolean?: mixed}>  $conditions
+     * @param  Builder<Customer>  $query
+     * @param  array<int, array{field?: string|null, operator?: string, value?: mixed, value_numeric?: mixed, value_boolean?: mixed, value_status?: mixed}>  $conditions
      */
     protected function applyConditions(Builder $query, array $conditions): void
     {
         foreach ($conditions as $condition) {
             $field = $condition['field'] ?? null;
-            $value = $condition['value_numeric'] ?? $condition['value_boolean'] ?? $condition['value'] ?? null;
+            $value = $condition['value_numeric']
+                ?? $condition['value_boolean']
+                ?? $condition['value_status']
+                ?? $condition['value']
+                ?? null;
 
-            if (! $field || $value === null) {
+            if (! is_string($field) || $field === '' || $value === null) {
+                $query->whereRaw('1 = 0');
+
                 continue;
             }
 

@@ -10,7 +10,9 @@ use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Support\CustomerProfileNormalizer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 /**
@@ -57,30 +59,45 @@ trait HasCustomerProfile
         $phone = $normalizer->normalizePhone($this->phone);
         $userId = $this->getKey();
 
-        return DB::transaction(function () use ($email, $firstName, $lastName, $phone, $userId): Customer {
-            $customer = Customer::create([
-                'user_id' => $userId,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-            ]);
+        try {
+            return DB::transaction(function () use ($email, $firstName, $lastName, $phone, $userId): Customer {
+                $customer = Customer::query()->create([
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                ]);
 
-            $customer->addContactMethod(new ContactMethodData(
-                type: 'email',
-                purpose: 'general',
-                value: $email,
-                isPrimary: true,
-            ));
+                $customer->forceFill(['user_id' => $userId])->save();
 
-            if ($phone !== null) {
-                $customer->addContactMethod(ContactMethodData::phone(
-                    $phone,
-                    countryCode: config('contacting.defaults.country_code', 'MY'),
+                $customer->addContactMethod(new ContactMethodData(
+                    type: 'email',
                     purpose: 'general',
+                    value: $email,
+                    isPrimary: true,
                 ));
+
+                if ($phone !== null) {
+                    $customer->addContactMethod(ContactMethodData::phone(
+                        $phone,
+                        countryCode: config('contacting.defaults.country_code', 'MY'),
+                        purpose: 'general',
+                    ));
+                }
+
+                return $customer;
+            });
+        } catch (UniqueConstraintViolationException) {
+            $this->unsetRelation('customerProfile');
+
+            $existing = $this->customerProfile;
+
+            if ($existing instanceof Customer) {
+                return $existing;
             }
 
-            return $customer;
-        });
+            throw ValidationException::withMessages([
+                'user_id' => 'A customer profile already exists for this user.',
+            ]);
+        }
     }
 
     /**

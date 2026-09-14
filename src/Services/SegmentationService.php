@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Actions\AssignCustomerToSegment;
 use AIArmada\Customers\Actions\RebuildAllSegments;
 use AIArmada\Customers\Actions\RemoveCustomerFromSegment;
+use AIArmada\Customers\Enums\CustomerStatus;
 use AIArmada\Customers\Events\CustomerSegmentChanged;
 use AIArmada\Customers\Models\Customer;
 use AIArmada\Customers\Models\Segment;
@@ -194,9 +195,9 @@ final class SegmentationService
      */
     public function getSegmentStats(Segment $segment): array
     {
-        $customers = $segment->customers;
+        $customerCount = $segment->customers()->count();
 
-        if ($customers->isEmpty()) {
+        if ($customerCount === 0) {
             return [
                 'customer_count' => 0,
                 'active_count' => 0,
@@ -205,14 +206,14 @@ final class SegmentationService
             ];
         }
 
-        $activeCount = $customers->where('status', 'active')->count();
-        $marketingOptedIn = $customers->where('accepts_marketing', true)->count();
+        $activeCount = $segment->customers()->where('status', CustomerStatus::Active)->count();
+        $marketingOptedIn = $segment->customers()->where('accepts_marketing', true)->count();
 
         return [
-            'customer_count' => $customers->count(),
+            'customer_count' => $customerCount,
             'active_count' => $activeCount,
             'marketing_opted_in' => $marketingOptedIn,
-            'marketing_opted_in_percentage' => round(($marketingOptedIn / $customers->count()) * 100, 1),
+            'marketing_opted_in_percentage' => round(($marketingOptedIn / $customerCount) * 100, 1),
         ];
     }
 
@@ -226,10 +227,14 @@ final class SegmentationService
      */
     protected function evaluateCondition(Customer $customer, array $condition): bool
     {
+        if (! $customer->isActive()) {
+            return false;
+        }
+
         $field = $condition['field'] ?? null;
 
-        if ($field === null) {
-            return true;
+        if (! is_string($field) || $field === '') {
+            return false;
         }
 
         $value = $condition['value_numeric']
@@ -239,13 +244,13 @@ final class SegmentationService
             ?? null;
 
         if ($value === null) {
-            return true;
+            return false;
         }
 
         return match ($field) {
             'accepts_marketing' => $customer->accepts_marketing === (bool) $value,
-            'status' => $customer->status->value === $value,
-            'created_days_ago' => $customer->created_at && $customer->created_at->lte(CarbonImmutable::now()->subDays((int) $value)),
+            'status' => $customer->status->value === ($value instanceof CustomerStatus ? $value->value : (string) $value),
+            'created_days_ago' => $customer->created_at !== null && $customer->created_at->lte(CarbonImmutable::now()->subDays((int) $value)),
             default => false,
         };
     }

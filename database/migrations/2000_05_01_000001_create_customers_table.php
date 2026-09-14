@@ -33,7 +33,7 @@ return new class extends Migration
             $table->string('status')->default('active');
 
             // Preferences
-            $table->boolean('accepts_marketing')->default(true);
+            $table->boolean('accepts_marketing')->default(false);
             $table->boolean('is_guest')->default(false);
 
             // Lifecycle
@@ -56,7 +56,9 @@ return new class extends Migration
             $table->index('is_guest');
             $table->index('activated_at');
             $table->index('suspended_at');
+            $table->index('created_at', 'customers_created_at_index');
             $table->index(['owner_type', 'owner_id', 'status'], 'customers_owner_status_index');
+            $table->unique(['owner_type', 'owner_id', 'user_id'], 'customers_owner_user_unique');
         });
     }
 };

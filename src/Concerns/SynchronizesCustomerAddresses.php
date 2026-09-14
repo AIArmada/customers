@@ -95,21 +95,21 @@ trait SynchronizesCustomerAddresses
     {
         $query = $customer->addresses()
             ->wherePivot('type', $type->value)
-            ->where('line1', $payload->line1)
-            ->where('city', $payload->city)
-            ->where('postcode', $payload->postcode)
+            ->whereRaw('LOWER(line1) = ?', [mb_strtolower($payload->line1)])
+            ->whereRaw('LOWER(city) = ?', [mb_strtolower($payload->city)])
+            ->whereRaw('LOWER(postcode) = ?', [mb_strtolower($payload->postcode)])
             ->where('country_code', $payload->countryCode);
 
         if ($payload->line2 === null) {
             $query->whereNull('line2');
         } else {
-            $query->where('line2', $payload->line2);
+            $query->whereRaw('LOWER(line2) = ?', [mb_strtolower($payload->line2)]);
         }
 
         if ($payload->state === null) {
             $query->whereNull('state');
         } else {
-            $query->where('state', $payload->state);
+            $query->whereRaw('LOWER(state) = ?', [mb_strtolower($payload->state)]);
         }
 
         return $query->first();

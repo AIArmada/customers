@@ -7,15 +7,39 @@ namespace AIArmada\Customers\Policies;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Models\CustomerGroup;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Database\Eloquent\Model;
+use Throwable;
 
 final class CustomerGroupPolicy
 {
     use HandlesAuthorization;
 
-    private function isAuthenticated(mixed $user): bool
+    private function hasPermission(mixed $user, string $permission): bool
     {
-        return $user !== null;
+        if ($user === null) {
+            return false;
+        }
+
+        try {
+            // Gate-mediated check first: Spatie permissions resolve through
+            // Gate::before, which also preserves Super Admin overrides.
+            if ($user instanceof Authorizable) {
+                return $user->can($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'hasPermissionTo')) {
+                return (bool) $user->hasPermissionTo($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'can')) {
+                return (bool) $user->can($permission);
+            }
+        } catch (Throwable) {
+            return false;
+        }
+
+        return false;
     }
 
     private function resolveOwner(): ?Model
@@ -49,27 +73,27 @@ final class CustomerGroupPolicy
 
     public function viewAny(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.groups.view');
     }
 
     public function view(mixed $user, CustomerGroup $group): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($group);
+        return $this->hasPermission($user, 'customers.groups.view') && $this->isAccessible($group);
     }
 
     public function create(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.groups.create');
     }
 
     public function update(mixed $user, CustomerGroup $group): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($group);
+        return $this->hasPermission($user, 'customers.groups.update') && $this->isAccessible($group);
     }
 
     public function delete(mixed $user, CustomerGroup $group): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($group);
+        return $this->hasPermission($user, 'customers.groups.delete') && $this->isAccessible($group);
     }
 
     /**
@@ -77,6 +101,6 @@ final class CustomerGroupPolicy
      */
     public function manageMembers(mixed $user, CustomerGroup $group): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($group);
+        return $this->hasPermission($user, 'customers.groups.manage-members') && $this->update($user, $group);
     }
 }

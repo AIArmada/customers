@@ -114,6 +114,11 @@ Or use the trait on your User model:
 $customer = $user->getOrCreateCustomerProfile();
 ```
 
+`user_id` is unique per owner scope: a user has at most one customer profile
+within an owner context. Concurrent `getOrCreateCustomerProfile()` calls are
+safe; the loser receives the winner's profile instead of creating a
+duplicate.
+
 ### Customer with a reusable address (forward path)
 
 ```php
@@ -171,6 +176,13 @@ If owner-scoping is enabled, pass the checkout session owner into the resolver s
 `resolve()` wraps profile updates, contact rows, address hydration, and any
 guest merge in one transaction. `resolveExisting()` remains a read-oriented
 lookup path.
+
+A session customer from a different owner context is ignored: both methods
+revalidate `$sessionCustomer` against the resolved owner and treat a
+mismatched or unpersisted record as absent, so foreign-owner profiles are
+never claimed, updated, or merged. Repeat checkouts do not duplicate contact
+rows: `addContactMethod()` returns the existing email or phone row when the
+same normalized value already exists for the customer.
 
 ### Payment Subject Driver Integration
 
@@ -306,6 +318,10 @@ remain reusable by other addressables. Attach addresses through `HasAddresses`; 
 
 ## Marketing Preferences
 
+New customers default to `accepts_marketing = false`. Marketing consent is
+opt-in: call `optInMarketing()` (which also stamps `marketing_consented_at`)
+only after the customer consents.
+
 ### Opt In/Out
 
 ```php
@@ -427,6 +443,14 @@ Automatic segments can use these conditions:
 | `status` | `=`, `!=` | Customer status enum value |
 | `created_days_ago` | `>=`, `<=`, `>`, `<` | Days since customer creation |
 
+Automatic segments only ever match active customers, through both the query
+path (`Segment::getMatchingCustomers()`, rebuilds) and the in-memory path
+(`SegmentationService::customerMatchesSegment()`, `evaluateCustomer()`).
+Conditions with a missing field, a missing value, or an unknown field match
+nothing in both paths, and an automatic segment with no conditions matches
+nobody. Segment slugs are unique per owner scope; concurrent duplicate
+creates fail with a `ValidationException`, not a database error.
+
 ### Rebuild Segments Command
 
 ```bash
@@ -533,6 +557,11 @@ $customer->addMedia($request->file('document'))
 // Get all documents
 $documents = $customer->getMedia('documents');
 ```
+
+The `documents` collection only accepts PDF, Office documents (doc, docx,
+xls, xlsx), CSV, plain text, and common web images (jpeg, png, webp), with a
+10 MB per-file limit. Uploads outside the whitelist (including SVG/HTML) are
+rejected with `FileUnacceptableForCollection`.
 
 ## Activity Logging
 

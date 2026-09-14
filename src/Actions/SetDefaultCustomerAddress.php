@@ -22,6 +22,10 @@ final class SetDefaultCustomerAddress
             throw new LogicException('Only persisted addresses can be made default.');
         }
 
+        if (! $this->shareOwner($customer, $address)) {
+            throw new InvalidArgumentException('Customer and address must share the same owner context.');
+        }
+
         $isAttached = $customer->addresses()
             ->whereKey($address->getKey())
             ->wherePivot('type', $type)
@@ -39,5 +43,15 @@ final class SetDefaultCustomerAddress
         }
 
         $customer->setPrimaryAddress($address, type: $type);
+    }
+
+    private function shareOwner(Customer $customer, Address $address): bool
+    {
+        if ($customer->owner_type === null && $customer->owner_id === null) {
+            return $address->owner_type === null && $address->owner_id === null;
+        }
+
+        return $address->owner_type === $customer->owner_type
+            && (string) $address->owner_id === (string) $customer->owner_id;
     }
 }

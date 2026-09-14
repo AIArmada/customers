@@ -39,6 +39,7 @@ final class CustomerResolver
         Model | string | null $owner = OwnerContext::CURRENT,
     ): ?Customer {
         return $this->runWithinOwnerContext($owner, function () use ($billingData, $sessionCustomer, $shippingData, $user): ?Customer {
+            $sessionCustomer = $this->scopedSessionCustomer($sessionCustomer);
             $email = $this->resolveEmail($billingData, $shippingData, $user, $sessionCustomer);
 
             if ($user !== null) {
@@ -84,6 +85,8 @@ final class CustomerResolver
         Model | string | null $owner = OwnerContext::CURRENT,
     ): ?Customer {
         return $this->runWithinOwnerContext($owner, function () use ($billingData, $sessionCustomer, $shippingData, $user): ?Customer {
+            $sessionCustomer = $this->scopedSessionCustomer($sessionCustomer);
+
             return DB::transaction(function () use ($billingData, $sessionCustomer, $shippingData, $user): ?Customer {
                 $email = $this->resolveEmail($billingData, $shippingData, $user, $sessionCustomer);
 
@@ -104,10 +107,10 @@ final class CustomerResolver
                     }
 
                     if ($sessionCustomer !== null && $sessionCustomer->is_guest) {
-                        $sessionCustomer->update([
+                        $sessionCustomer->forceFill([
                             'user_id' => $user->getKey(),
                             'is_guest' => false,
-                        ]);
+                        ])->save();
 
                         $this->updateCustomerProfile->execute($sessionCustomer, $billingData, $shippingData, $user);
                         $this->syncAddressesFromPayload($sessionCustomer, $billingData, $shippingData);
@@ -135,7 +138,7 @@ final class CustomerResolver
                             $this->mergeCustomers($sessionCustomer, $emailCustomer);
                         }
 
-                        $emailCustomer->fill([
+                        $emailCustomer->forceFill([
                             'user_id' => $user->getKey(),
                             'is_guest' => false,
                         ]);

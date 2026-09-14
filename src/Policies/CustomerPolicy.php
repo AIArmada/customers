@@ -7,15 +7,39 @@ namespace AIArmada\Customers\Policies;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Database\Eloquent\Model;
+use Throwable;
 
 final class CustomerPolicy
 {
     use HandlesAuthorization;
 
-    private function isAuthenticated(mixed $user): bool
+    private function hasPermission(mixed $user, string $permission): bool
     {
-        return $user !== null;
+        if ($user === null) {
+            return false;
+        }
+
+        try {
+            // Gate-mediated check first: Spatie permissions resolve through
+            // Gate::before, which also preserves Super Admin overrides.
+            if ($user instanceof Authorizable) {
+                return $user->can($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'hasPermissionTo')) {
+                return (bool) $user->hasPermissionTo($permission);
+            }
+
+            if (is_object($user) && method_exists($user, 'can')) {
+                return (bool) $user->can($permission);
+            }
+        } catch (Throwable) {
+            return false;
+        }
+
+        return false;
     }
 
     private function resolveOwner(): ?Model
@@ -49,29 +73,27 @@ final class CustomerPolicy
 
     public function viewAny(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.customers.view');
     }
 
     public function view(mixed $user, Customer $customer): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($customer);
+        return $this->hasPermission($user, 'customers.customers.view') && $this->isAccessible($customer);
     }
 
     public function create(mixed $user): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->hasPermission($user, 'customers.customers.create');
     }
 
     public function update(mixed $user, Customer $customer): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($customer);
+        return $this->hasPermission($user, 'customers.customers.update') && $this->isAccessible($customer);
     }
 
     public function delete(mixed $user, Customer $customer): bool
     {
-        // Cannot delete customers with orders
-        // This would integrate with orders package
-        return $this->isAuthenticated($user) && $this->isAccessible($customer);
+        return $this->hasPermission($user, 'customers.customers.delete') && $this->isAccessible($customer);
     }
 
     /**
@@ -79,7 +101,7 @@ final class CustomerPolicy
      */
     public function addCredit(mixed $user, Customer $customer): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($customer);
+        return $this->hasPermission($user, 'customers.customers.add-credit') && $this->isAccessible($customer);
     }
 
     /**
@@ -87,6 +109,6 @@ final class CustomerPolicy
      */
     public function deductCredit(mixed $user, Customer $customer): bool
     {
-        return $this->isAuthenticated($user) && $this->isAccessible($customer);
+        return $this->hasPermission($user, 'customers.customers.deduct-credit') && $this->isAccessible($customer);
     }
 }

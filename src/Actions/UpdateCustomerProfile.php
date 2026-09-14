@@ -25,7 +25,7 @@ final class UpdateCustomerProfile
     ): void {
         $normalizer = app(CustomerProfileNormalizer::class);
 
-        DB::transaction(function () use ($billingData, $customer, $normalizer, $shippingData, $user): void {
+        DB::transaction(function () use ($billingData, $customer, $normalizer, $personId, $shippingData, $user): void {
             $updates = [];
 
             $nameParts = $normalizer->resolveNameParts($billingData, $shippingData, $user);
@@ -77,10 +77,10 @@ final class UpdateCustomerProfile
                     purpose: 'general',
                 ));
             }
-        });
 
-        if ($personId !== null) {
-            app(LinkCustomerToPerson::class)->executeByKey($customer, $personId);
-        }
+            if ($personId !== null) {
+                app(LinkCustomerToPerson::class)->executeByKey($customer, $personId);
+            }
+        });
     }
 }

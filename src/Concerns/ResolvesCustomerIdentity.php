@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Customers\Concerns;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Customers\Models\Customer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -20,7 +21,7 @@ trait ResolvesCustomerIdentity
             if ($relation !== null) {
                 $customer = $relation->getResults();
 
-                if ($customer instanceof Customer) {
+                if ($customer instanceof Customer && $this->customerIsInCurrentOwnerScope($customer)) {
                     return $customer;
                 }
             }
@@ -33,7 +34,7 @@ trait ResolvesCustomerIdentity
             if ($relation !== null) {
                 $customer = $relation->getResults();
 
-                if ($customer instanceof Customer) {
+                if ($customer instanceof Customer && $this->customerIsInCurrentOwnerScope($customer)) {
                     return $customer;
                 }
             }
@@ -48,6 +49,34 @@ trait ResolvesCustomerIdentity
         return Customer::query()
             ->where('user_id', $userId)
             ->first();
+    }
+
+    private function scopedSessionCustomer(?Customer $sessionCustomer): ?Customer
+    {
+        if ($sessionCustomer === null || $sessionCustomer->getKey() === null) {
+            return null;
+        }
+
+        return $this->customerIsInCurrentOwnerScope($sessionCustomer) ? $sessionCustomer : null;
+    }
+
+    private function customerIsInCurrentOwnerScope(Customer $customer): bool
+    {
+        if (! (bool) config('customers.features.owner.enabled', false)) {
+            return true;
+        }
+
+        $owner = OwnerContext::resolve();
+
+        if ($owner === null) {
+            return $customer->owner_type === null && $customer->owner_id === null;
+        }
+
+        if ($customer->belongsToOwner($owner)) {
+            return true;
+        }
+
+        return (bool) config('customers.features.owner.include_global', false) && $customer->isGlobal();
     }
 
     private function findReusableGuestCustomerByEmail(string $email): ?Customer
@@ -73,7 +102,15 @@ trait ResolvesCustomerIdentity
             ->forOwner(includeGlobal: (bool) config('customers.features.owner.include_global', false))
             ->whereHas('contactMethods', function (Builder $contactMethods) use ($normalizedEmail): void {
                 $contactMethods->where('type', 'email')
-                    ->whereRaw('LOWER(TRIM(COALESCE(normalized_value, value))) = ?', [$normalizedEmail]);
+                    ->where(function (Builder $query) use ($normalizedEmail): void {
+                        $query->where('normalized_value', $normalizedEmail)
+                            ->orWhere(function (Builder $query) use ($normalizedEmail): void {
+                                $query->where(function (Builder $query): void {
+                                    $query->whereNull('normalized_value')
+                                        ->orWhere('normalized_value', '');
+                                })->whereRaw('LOWER(TRIM(COALESCE(value, \'\'))) = ?', [$normalizedEmail]);
+                            });
+                    });
             })
             ->first();
     }

@@ -83,7 +83,7 @@ class RebuildSegmentsCommand extends Command
         $this->components->info("Rebuilding segment: {$segment->name}");
 
         if ($dryRun) {
-            $matchCount = $segment->getMatchingCustomers()->count();
+            $matchCount = $segment->countMatchingCustomers();
             $currentCount = $segment->customers()->count();
             $this->components->twoColumnDetail($segment->name, "{$matchCount} matching (currently {$currentCount})");
 
@@ -121,7 +121,7 @@ class RebuildSegmentsCommand extends Command
 
         foreach ($segments as $segment) {
             if ($dryRun) {
-                $matchCount = $segment->getMatchingCustomers()->count();
+                $matchCount = $segment->countMatchingCustomers();
                 $currentCount = $segment->customers()->count();
                 $results[$segment->name] = "{$matchCount} matching (currently {$currentCount})";
             } else {
