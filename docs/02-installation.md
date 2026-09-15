@@ -7,7 +7,7 @@ title: Installation
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11+
+- Laravel 13+
 - aiarmada/commerce-support package
 - aiarmada/addressing package (required for canonical customer addresses)
 - aiarmada/contacting package
