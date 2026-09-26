@@ -79,9 +79,13 @@ $customer = Customer::create([
     'first_name' => 'John',
     'last_name' => 'Doe',
     'company' => 'Acme Corp',
-    'status' => CustomerStatus::Active,
-    'accepts_marketing' => true,
 ]);
+
+// `Customer::$fillable` is limited to first_name/last_name/company, so
+// lifecycle and preference columns must be assigned directly.
+$customer->status = CustomerStatus::Active;
+$customer->accepts_marketing = true;
+$customer->save();
 
 $customer->addContactMethod(ContactMethodData::email('john@example.com'));
 $customer->addContactMethod(ContactMethodData::phone('+60123456789', 'MY'));
@@ -100,10 +104,13 @@ use AIArmada\Contacting\Data\ContactMethodData;
 use AIArmada\Customers\Models\Customer;
 
 $customer = Customer::create([
-    'user_id' => $user->id,
     'first_name' => $user->name,
     'last_name' => '',
 ]);
+
+// `user_id` is not mass-assignable.
+$customer->user_id = $user->id;
+$customer->save();
 
 $customer->addContactMethod(ContactMethodData::email($user->email));
 ```
@@ -242,7 +249,8 @@ legacy guard and is not the source of tenant identity.
 ```php
 use AIArmada\Customers\Enums\CustomerStatus;
 
-$customer->update(['status' => CustomerStatus::Suspended]);
+$customer->status = CustomerStatus::Suspended;
+$customer->save();
 ```
 
 ### Status Checks
@@ -459,6 +467,15 @@ php artisan customers:rebuild-segments
 
 # Rebuild a specific segment
 php artisan customers:rebuild-segments --segment=vip-customers
+
+# Scope the rebuild to one owner
+php artisan customers:rebuild-segments --owner-type=App\\Models\\Team --owner-id=01J...
+
+# Rebuild every owner (and global)
+php artisan customers:rebuild-segments --all-owners
+
+# Report without writing
+php artisan customers:rebuild-segments --dry-run
 ```
 
 ## Customer Groups
@@ -544,7 +561,8 @@ $customer->addMedia($request->file('avatar'))
 // Get avatar URL
 $avatarUrl = $customer->getAvatarUrl();
 
-// Get with conversion
+// The shipped `avatar` collection registers no conversions, so a conversion
+// name only resolves once you register one on the collection.
 $thumbUrl = $customer->getAvatarUrl('thumb');
 ```
 

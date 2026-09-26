@@ -45,8 +45,8 @@ keywords:
 
 ## Key surfaces
 - Models: `Customer`, `CustomerGroup`, `CustomerNote`, `Segment` (address records come from `addressing.Address`)
-- Actions/Services: `Actions/AssignCustomerToSegment`, `Actions/CreateCustomer`, `Actions/LinkCustomerToPerson`, `Actions/MergeCustomers`, `Actions/RebuildAllSegments`, `Actions/RemoveCustomerFromSegment`, `Actions/UpdateCustomerProfile`, `Services/CustomerResolver`, `Services/SegmentationService`, `Support/CustomerProfileNormalizer`
-- Config `customers.php`: `database`, `table_prefix`, `json_column_type`, `tables`, `customers`, `segments`, `segment_customer`, `groups`, `group_members`
+- Actions/Services: `Actions/AssignCustomerToSegment`, `Actions/CreateCustomer`, `Actions/LinkCustomerToPerson`, `Actions/MergeCustomers`, `Actions/RebuildAllSegments`, `Actions/RemoveCustomerFromSegment`, `Actions/SetDefaultCustomerAddress`, `Actions/UpdateCustomerProfile`, `Services/CustomerResolver`, `Services/SegmentationService`, `Support/CustomerProfileNormalizer`, `Payment/CustomersPaymentSubjectDriver`
+- Config `customers.php`: `database` (`table_prefix`, `json_column_type`, and 6 `tables.*` keys: `customers`, `segments`, `segment_customer`, `groups`, `group_members`, `notes`), `features` (`owner.enabled`, `owner.include_global`, `owner.auto_assign_on_create`, `segments.auto_assign`), `integrations.user_model`
 
 ## Docs map
 - Start: `01-overview` → `03-configuration` → `04-usage` → `99-troubleshooting`
