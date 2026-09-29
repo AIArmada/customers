@@ -157,7 +157,7 @@ For PostgreSQL, `jsonb` is used by default. Add GIN indexes on metadata columns 
 
 ```php
 Schema::table('customers', function (Blueprint $table) {
-    $table->index('metadata')->algorithm('gin');
+    $table->index('metadata', 'customers_metadata_gin', 'gin');
 });
 ```
 
@@ -165,16 +165,10 @@ Schema::table('customers', function (Blueprint $table) {
 
 ### Owner Scoping
 
-Always enable owner scoping in multi-tenant applications:
-
-```php
-'features' => [
-    'owner' => [
-        'enabled' => true,
-        'include_global' => false, // Strict isolation
-    ],
-],
-```
+Keep `features.owner.enabled` at `true` in multi-tenant applications and leave
+`include_global` at `false` for strict isolation (see the canonical `features`
+block above). `enabled` turns the shared `OwnerScope` on; `include_global`
+decides whether ownerless rows appear in owner-scoped reads.
 
 ## Next Steps
 
