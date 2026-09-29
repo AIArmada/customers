@@ -178,7 +178,7 @@ if (!$policy->view($user, $customer)) {
 
 ```php
 // Ensure no orders exist (if orders package is installed)
-if ($customer->orders()->exists()) {
+if (\AIArmada\Orders\Models\Order::query()->whereMorphedTo('customer', $customer)->exists()) {
     throw new \Exception('Cannot delete customer with orders');
 }
 
