@@ -219,7 +219,7 @@ Log::channel('customers')->debug('Creating customer', [
 2. **Enable Debug Mode**: Set `APP_DEBUG=true` in `.env`
 3. **Check Logs**: Review `storage/logs/laravel.log`
 4. **Test in Isolation**: Create minimal reproduction case
-5. **Review Guidelines**: Check `.github/copilot-instructions.md`
+5. **Review Guidelines**: Check `AGENTS.md`
 
 ## Reporting Issues
 
